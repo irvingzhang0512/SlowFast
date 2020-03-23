@@ -164,6 +164,9 @@ _C.MODEL = CfgNode()
 # Model architecture.
 _C.MODEL.ARCH = "slowfast"
 
+# Model name
+_C.MODEL.MODEL_NAME = "SlowFast"
+
 # The number of classes to predict for the model.
 _C.MODEL.NUM_CLASSES = 400
 
@@ -184,7 +187,7 @@ _C.MODEL.FC_INIT_STD = 0.01
 
 
 # -----------------------------------------------------------------------------
-# Slowfast options
+# SlowFast options
 # -----------------------------------------------------------------------------
 _C.SLOWFAST = CfgNode()
 
@@ -242,6 +245,17 @@ _C.DATA.TRAIN_CROP_SIZE = 224
 # The spatial crop size for testing.
 _C.DATA.TEST_CROP_SIZE = 256
 
+# Input videos may has different fps, convert it to the target video fps before
+# frame sampling.
+_C.DATA.TARGET_FPS = 30
+
+# Decoding backend, options include `pyav` or `torchvision`
+_C.DATA.DECODING_BACKEND = "pyav"
+
+# if True, sample uniformly in [1 / max_scale, 1 / min_scale] and take a
+# reciprocal to get the scale. If False, take a uniform sample from
+# [min_scale, max_scale].
+_C.DATA.INV_UNIFORM_SAMPLE = False
 
 # ---------------------------------------------------------------------------- #
 # Optimizer options

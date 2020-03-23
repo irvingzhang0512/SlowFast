@@ -6,12 +6,12 @@ import random
 import torch
 import torch.utils.data
 
+import slowfast.utils.logging as logging
+
 from . import decoder as decoder
 from . import transform as transform
 from . import utils as utils
 from . import video_container as container
-import slowfast.utils.logging as logging
-
 from .build import DATASET_REGISTRY
 
 logger = logging.get_logger(__name__)
@@ -160,6 +160,7 @@ class Kinetics(torch.utils.data.Dataset):
                 video_container = container.get_video_container(
                     self._path_to_videos[index],
                     self.cfg.DATA_LOADER.ENABLE_MULTI_THREAD_DECODE,
+                    self.cfg.DATA.DECODING_BACKEND,
                 )
             except Exception as e:
                 logger.info(
@@ -180,7 +181,9 @@ class Kinetics(torch.utils.data.Dataset):
                 temporal_sample_index,
                 self.cfg.TEST.NUM_ENSEMBLE_VIEWS,
                 video_meta=self._video_meta[index],
-                target_fps=30,
+                target_fps=self.cfg.DATA.TARGET_FPS,
+                backend=self.cfg.DATA.DECODING_BACKEND,
+                max_spatial_scale=max_scale,
             )
 
             # If decoding failed (wrong format, video is too short, and etc),
@@ -252,7 +255,10 @@ class Kinetics(torch.utils.data.Dataset):
         assert spatial_idx in [-1, 0, 1, 2]
         if spatial_idx == -1:
             frames, _ = transform.random_short_side_scale_jitter(
-                frames, min_scale, max_scale
+                images=frames,
+                min_size=min_scale,
+                max_size=max_scale,
+                inverse_uniform_sampling=self.cfg.DATA.INV_UNIFORM_SAMPLE,
             )
             frames, _ = transform.random_crop(frames, crop_size)
             frames, _ = transform.horizontal_flip(0.5, frames)
