@@ -4,6 +4,8 @@
 """Configs."""
 from fvcore.common.config import CfgNode
 
+from . import custom_config
+
 # -----------------------------------------------------------------------------
 # Config definition
 # -----------------------------------------------------------------------------
@@ -174,7 +176,7 @@ _C.MODEL.NUM_CLASSES = 400
 _C.MODEL.LOSS_FUNC = "cross_entropy"
 
 # Model architectures that has one single pathway.
-_C.MODEL.SINGLE_PATHWAY_ARCH = ["c2d", "i3d", "slowonly"]
+_C.MODEL.SINGLE_PATHWAY_ARCH = ["c2d", "i3d", "slow"]
 
 # Model architectures that has multiple pathways.
 _C.MODEL.MULTI_PATHWAY_ARCH = ["slowfast"]
@@ -184,6 +186,9 @@ _C.MODEL.DROPOUT_RATE = 0.5
 
 # The std to initialize the fc layer(s).
 _C.MODEL.FC_INIT_STD = 0.01
+
+# Activation layer for the output head.
+_C.MODEL.HEAD_ACT = "softmax"
 
 
 # -----------------------------------------------------------------------------
@@ -257,6 +262,9 @@ _C.DATA.DECODING_BACKEND = "pyav"
 # [min_scale, max_scale].
 _C.DATA.INV_UNIFORM_SAMPLE = False
 
+# If True, perform random horizontal flip on the video frames during training.
+_C.DATA.RANDOM_FLIP = True
+
 # ---------------------------------------------------------------------------- #
 # Optimizer options
 # ---------------------------------------------------------------------------- #
@@ -299,7 +307,7 @@ _C.SOLVER.WEIGHT_DECAY = 1e-4
 _C.SOLVER.WARMUP_FACTOR = 0.1
 
 # Gradually warm up the SOLVER.BASE_LR over this number of epochs.
-_C.SOLVER.WARMUP_EPOCHS = 0
+_C.SOLVER.WARMUP_EPOCHS = 0.0
 
 # The start learning rate of the warm up.
 _C.SOLVER.WARMUP_START_LR = 0.01
@@ -333,6 +341,17 @@ _C.LOG_PERIOD = 10
 
 # Distributed backend.
 _C.DIST_BACKEND = "nccl"
+
+# ---------------------------------------------------------------------------- #
+# Benchmark options
+# ---------------------------------------------------------------------------- #
+_C.BENCHMARK = CfgNode()
+
+# Number of epochs for data loading benchmark.
+_C.BENCHMARK.NUM_EPOCHS = 5
+
+# Log period in iters for data loading benchmark.
+_C.BENCHMARK.LOG_PERIOD = 100
 
 
 # ---------------------------------------------------------------------------- #
@@ -442,6 +461,9 @@ _C.AVA.GROUNDTRUTH_FILE = "ava_val_v2.2.csv"
 
 # Backend to process image, includes `pytorch` and `cv2`.
 _C.AVA.IMG_PROC_BACKEND = "cv2"
+
+# Add custom config with default values.
+custom_config.add_custom_config(_C)
 
 
 def _assert_and_infer_cfg(cfg):

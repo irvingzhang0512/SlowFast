@@ -5,7 +5,6 @@ import math
 import numpy as np
 import random
 import torch
-
 import torchvision.io as io
 
 
@@ -148,7 +147,7 @@ def torchvision_decode(
     # The video_meta is empty, fetch the meta data from the raw video.
     if len(video_meta) == 0:
         # Tracking the meta info for selective decoding in the future.
-        meta = io.read_video_meta_data_from_memory(video_tensor)
+        meta = io._probe_video_from_memory(video_tensor)
         # Using the information from video_meta to perform selective decoding.
         video_meta["video_timebase"] = meta.video_timebase
         video_meta["video_numerator"] = meta.video_timebase.numerator
@@ -163,8 +162,27 @@ def torchvision_decode(
         video_meta["audio_duration"] = meta.audio_duration
         video_meta["audio_sample_rate"] = meta.audio_sample_rate
 
+    if (
+        video_meta["has_video"]
+        and video_meta["video_denominator"] > 0
+        and video_meta["video_duration"] > 0
+    ):
+        decode_all_video = False
+        start_idx, end_idx = get_start_end_idx(
+            video_meta["video_fps"] * video_meta["video_duration"],
+            sampling_rate * num_frames / target_fps * video_meta["video_fps"],
+            clip_idx,
+            num_clips,
+        )
+        # Convert frame index to pts.
+        pts_per_frame = (
+            video_meta["video_denominator"] / video_meta["video_fps"]
+        )
+        video_start_pts = int(start_idx * pts_per_frame)
+        video_end_pts = int(end_idx * pts_per_frame)
+
     # Decode the raw video with the tv decoder.
-    v_frames, _ = io.read_video_from_memory(
+    v_frames, _ = io._read_video_from_memory(
         video_tensor,
         seek_frame_margin=1.0,
         read_video_stream="visual" in modalities,

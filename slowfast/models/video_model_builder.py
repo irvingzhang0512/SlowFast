@@ -44,7 +44,7 @@ _TEMPORAL_KERNEL_BASIS = {
         [[3, 1]],  # res4 temporal kernel.
         [[1, 3]],  # res5 temporal kernel.
     ],
-    "slowonly": [
+    "slow": [
         [[1]],  # conv1 temporal kernel.
         [[1]],  # res2 temporal kernel.
         [[1]],  # res3 temporal kernel.
@@ -65,7 +65,7 @@ _POOL1 = {
     "c2d_nopool": [[1, 1, 1]],
     "i3d": [[2, 1, 1]],
     "i3d_nopool": [[1, 1, 1]],
-    "slowonly": [[1, 1, 1]],
+    "slow": [[1, 1, 1]],
     "slowfast": [[1, 1, 1], [1, 1, 1]],
 }
 
@@ -331,7 +331,7 @@ class SlowFast(nn.Module):
                 resolution=[[cfg.DETECTION.ROI_XFORM_RESOLUTION] * 2] * 2,
                 scale_factor=[cfg.DETECTION.SPATIAL_SCALE_FACTOR] * 2,
                 dropout_rate=cfg.MODEL.DROPOUT_RATE,
-                act_func="sigmoid",
+                act_func=cfg.MODEL.HEAD_ACT,
                 aligned=cfg.DETECTION.ALIGNED,
             )
         else:
@@ -356,6 +356,7 @@ class SlowFast(nn.Module):
                     ],
                 ],
                 dropout_rate=cfg.MODEL.DROPOUT_RATE,
+                act_func=cfg.MODEL.HEAD_ACT,
             )
 
     def forward(self, x, bboxes=None):
@@ -382,7 +383,7 @@ class SlowFast(nn.Module):
 class ResNet(nn.Module):
     """
     ResNet model builder. It builds a ResNet like network backbone without
-    lateral connection (C2D, I3D, SlowOnly).
+    lateral connection (C2D, I3D, Slow).
 
     Christoph Feichtenhofer, Haoqi Fan, Jitendra Malik, and Kaiming He.
     "SlowFast networks for video recognition."
@@ -531,7 +532,7 @@ class ResNet(nn.Module):
                 resolution=[[cfg.DETECTION.ROI_XFORM_RESOLUTION] * 2],
                 scale_factor=[cfg.DETECTION.SPATIAL_SCALE_FACTOR],
                 dropout_rate=cfg.MODEL.DROPOUT_RATE,
-                act_func="sigmoid",
+                act_func=cfg.MODEL.HEAD_ACT,
                 aligned=cfg.DETECTION.ALIGNED,
             )
         else:
@@ -546,6 +547,7 @@ class ResNet(nn.Module):
                     ]
                 ],
                 dropout_rate=cfg.MODEL.DROPOUT_RATE,
+                act_func=cfg.MODEL.HEAD_ACT,
             )
 
     def forward(self, x, bboxes=None):

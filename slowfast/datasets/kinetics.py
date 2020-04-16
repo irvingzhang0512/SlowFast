@@ -5,6 +5,7 @@ import os
 import random
 import torch
 import torch.utils.data
+from fvcore.common.file_io import PathManager
 
 import slowfast.utils.logging as logging
 
@@ -80,14 +81,14 @@ class Kinetics(torch.utils.data.Dataset):
         path_to_file = os.path.join(
             self.cfg.DATA.PATH_TO_DATA_DIR, "{}.csv".format(self.mode)
         )
-        assert os.path.exists(path_to_file), "{} dir not found".format(
+        assert PathManager.exists(path_to_file), "{} dir not found".format(
             path_to_file
         )
 
         self._path_to_videos = []
         self._labels = []
         self._spatial_temporal_idx = []
-        with open(path_to_file, "r") as f:
+        with PathManager.open(path_to_file, "r") as f:
             for clip_idx, path_label in enumerate(f.read().splitlines()):
                 assert len(path_label.split()) == 2
                 path, label = path_label.split()
@@ -206,6 +207,7 @@ class Kinetics(torch.utils.data.Dataset):
                 min_scale=min_scale,
                 max_scale=max_scale,
                 crop_size=crop_size,
+                random_horizontal_flip=self.cfg.DATA.RANDOM_FLIP,
             )
 
             label = self._labels[index]
@@ -232,6 +234,7 @@ class Kinetics(torch.utils.data.Dataset):
         min_scale=256,
         max_scale=320,
         crop_size=224,
+        random_horizontal_flip=True,
     ):
         """
         Perform spatial sampling on the given video frames. If spatial_idx is
@@ -261,7 +264,8 @@ class Kinetics(torch.utils.data.Dataset):
                 inverse_uniform_sampling=self.cfg.DATA.INV_UNIFORM_SAMPLE,
             )
             frames, _ = transform.random_crop(frames, crop_size)
-            frames, _ = transform.horizontal_flip(0.5, frames)
+            if random_horizontal_flip:
+                frames, _ = transform.horizontal_flip(0.5, frames)
         else:
             # The testing is deterministic and no jitter should be performed.
             # min_scale, max_scale, and crop_size are expect to be the same.
