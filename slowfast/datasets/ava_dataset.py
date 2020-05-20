@@ -54,10 +54,16 @@ class Ava(torch.utils.data.Dataset):
             cfg (CfgNode): config
         """
         # Loading frame paths.
+        # 输出两个 list，list的下标对应 video_id
+        # _image_paths 中保存 video_id 对应视频的所有帧的绝对路径
+        # _video_idx_to_name 中保存 video_id 对应的视频名称
+        # 视频名称指的是 1j20qq1JyX4 这样的形式
         self._image_paths, self._video_idx_to_name = ava_helper.load_image_lists(
             cfg, is_train=(self._split == "train")
         )
 
+        # 输出一个字典
+        # boxes_and_labels[video_name_str][frame_sec_int] = list(tuple(bbox_int_list, labels_int_list))
         # Loading annotations for boxes and labels.
         boxes_and_labels = ava_helper.load_boxes_and_labels(
             cfg, mode=self._split

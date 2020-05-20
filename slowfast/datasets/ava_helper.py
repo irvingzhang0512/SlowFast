@@ -158,6 +158,7 @@ def get_keyframe_data(boxes_and_labels):
     Args:
         boxes_and_labels (list[dict]): a list which maps from video_idx to a dict.
             Each dict `frame_sec` to a list of boxes and corresponding labels.
+            boxes_and_labels[video_name_str][frame_sec_int] = list(tuple(bbox_int_list, labels_int_list))
 
     Returns:
         keyframe_indices (list): a list of indices of the keyframes.

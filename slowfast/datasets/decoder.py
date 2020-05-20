@@ -30,6 +30,13 @@ def temporal_sampling(frames, start_idx, end_idx, num_samples):
 
 def get_start_end_idx(video_size, clip_size, clip_idx, num_clips):
     """
+    输入视频一共有 video_size 帧，从0开始编号
+    本函数输出一段视频对应帧编号的起始/终止编号
+    这段视频的长度为 clip_size，且将要剪切得到的帧是连续的
+    有两种剪切方法
+    方法一：随机剪切。在可选的范围内，随机选择起始帧编号。
+    方法二：分段/选择。将整段视频分为 num_clips 个部分，选择其中第 clip_idx 个部分
+
     Sample a clip of size clip_size from a video of size video_size and
     return the indices of the first and last frame of the clip. If clip_idx is
     -1, the clip is randomly sampled, otherwise uniformly split the video to
@@ -48,13 +55,23 @@ def get_start_end_idx(video_size, clip_size, clip_idx, num_clips):
         start_idx (int): the start frame index.
         end_idx (int): the end frame index.
     """
+    # 可选的起始帧编号最大值
+    # 可选范围为 [0, delta)
     delta = max(video_size - clip_size, 0)
+
     if clip_idx == -1:
+        # 方法一，随机剪切
+        # 随机选择起始帧编号
         # Random temporal sampling.
         start_idx = random.uniform(0, delta)
     else:
+        # 方法二，分段/剪切
+        # 将视频分为 num_clips 个部分
+        # 选择第 clip_idx 个部分，clip_idx * (delta / num_clips)
         # Uniformly sample the clip with the given index.
         start_idx = delta * clip_idx / num_clips
+    
+    # 选择连续的 crop_size 帧图像
     end_idx = start_idx + clip_size - 1
     return start_idx, end_idx
 
