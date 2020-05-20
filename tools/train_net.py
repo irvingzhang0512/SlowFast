@@ -91,24 +91,31 @@ def train_epoch(train_loader, model, optimizer, train_meter, cur_epoch, cfg):
             # Update and log stats.
             train_meter.update_stats(None, None, None, loss, lr)
         else:
-            # Compute the errors.
-            num_topks_correct = metrics.topks_correct(preds, labels, (1, 5))
-            top1_err, top5_err = [
-                (1.0 - x / preds.size(0)) * 100.0 for x in num_topks_correct
-            ]
+            top1_err, top5_err = None, None
+            if cfg.DATA.MULTI_LABEL:
+                # Gather all the predictions across all the devices.
+                if cfg.NUM_GPUS > 1:
+                    [loss] = du.all_reduce([loss])
+                loss = loss.item()
+            else:
+                # Compute the errors.
+                num_topks_correct = metrics.topks_correct(preds, labels, (1, 5))
+                top1_err, top5_err = [
+                    (1.0 - x / preds.size(0)) * 100.0 for x in num_topks_correct
+                ]
 
-            # Gather all the predictions across all the devices.
-            if cfg.NUM_GPUS > 1:
-                loss, top1_err, top5_err = du.all_reduce(
-                    [loss, top1_err, top5_err]
+                # Gather all the predictions across all the devices.
+                if cfg.NUM_GPUS > 1:
+                    loss, top1_err, top5_err = du.all_reduce(
+                        [loss, top1_err, top5_err]
+                    )
+
+                # Copy the stats from GPU to CPU (sync point).
+                loss, top1_err, top5_err = (
+                    loss.item(),
+                    top1_err.item(),
+                    top5_err.item(),
                 )
-
-            # Copy the stats from GPU to CPU (sync point).
-            loss, top1_err, top5_err = (
-                loss.item(),
-                top1_err.item(),
-                top5_err.item(),
-            )
 
             train_meter.iter_toc()
             # Update and log stats.
@@ -175,24 +182,29 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg):
         else:
             preds = model(inputs)
 
-            # Compute the errors.
-            num_topks_correct = metrics.topks_correct(preds, labels, (1, 5))
+            if cfg.DATA.MULTI_LABEL:
+                if cfg.NUM_GPUS > 1:
+                    preds, labels = du.all_gather([preds, labels])
+                val_meter.update_predictions(preds, labels)
+            else:
+                # Compute the errors.
+                num_topks_correct = metrics.topks_correct(preds, labels, (1, 5))
 
-            # Combine the errors across the GPUs.
-            top1_err, top5_err = [
-                (1.0 - x / preds.size(0)) * 100.0 for x in num_topks_correct
-            ]
-            if cfg.NUM_GPUS > 1:
-                top1_err, top5_err = du.all_reduce([top1_err, top5_err])
+                # Combine the errors across the GPUs.
+                top1_err, top5_err = [
+                    (1.0 - x / preds.size(0)) * 100.0 for x in num_topks_correct
+                ]
+                if cfg.NUM_GPUS > 1:
+                    top1_err, top5_err = du.all_reduce([top1_err, top5_err])
 
-            # Copy the errors from GPU to CPU (sync point).
-            top1_err, top5_err = top1_err.item(), top5_err.item()
+                # Copy the errors from GPU to CPU (sync point).
+                top1_err, top5_err = top1_err.item(), top5_err.item()
 
-            val_meter.iter_toc()
-            # Update and log stats.
-            val_meter.update_stats(
-                top1_err, top5_err, inputs[0].size(0) * cfg.NUM_GPUS
-            )
+                val_meter.iter_toc()
+                # Update and log stats.
+                val_meter.update_stats(
+                    top1_err, top5_err, inputs[0].size(0) * cfg.NUM_GPUS
+                )
 
         val_meter.log_iter_stats(cur_epoch, cur_iter)
         val_meter.iter_tic()
@@ -231,12 +243,14 @@ def train(cfg):
         cfg (CfgNode): configs. Details can be found in
             slowfast/config/defaults.py
     """
+    # Set up environment.
+    du.init_distributed_training(cfg)
     # Set random seed from configs.
     np.random.seed(cfg.RNG_SEED)
     torch.manual_seed(cfg.RNG_SEED)
 
     # Setup logging format.
-    logging.setup_logging()
+    logging.setup_logging(cfg.OUTPUT_DIR)
 
     # Print config.
     logger.info("Train with config:")
@@ -244,7 +258,7 @@ def train(cfg):
 
     # Build the video model and print model statistics.
     model = build_model(cfg)
-    if du.is_master_proc():
+    if du.is_master_proc() and cfg.LOG_MODEL_INFO:
         misc.log_model_info(model, cfg, is_train=True)
 
     # Construct the optimizer.
@@ -298,6 +312,7 @@ def train(cfg):
             calculate_and_update_precise_bn(
                 train_loader, model, cfg.BN.NUM_BATCHES_PRECISE
             )
+        _ = misc.aggregate_split_bn_stats(model)
 
         # Save a checkpoint.
         if cu.is_checkpoint_epoch(cur_epoch, cfg.TRAIN.CHECKPOINT_PERIOD):

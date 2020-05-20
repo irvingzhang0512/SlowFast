@@ -112,12 +112,14 @@ def test(cfg):
         cfg (CfgNode): configs. Details can be found in
             slowfast/config/defaults.py
     """
+    # Set up environment.
+    du.init_distributed_training(cfg)
     # Set random seed from configs.
     np.random.seed(cfg.RNG_SEED)
     torch.manual_seed(cfg.RNG_SEED)
 
     # Setup logging format.
-    logging.setup_logging()
+    logging.setup_logging(cfg.OUTPUT_DIR)
 
     # Print config.
     logger.info("Test with config:")
@@ -177,6 +179,8 @@ def test(cfg):
             cfg.TEST.NUM_ENSEMBLE_VIEWS * cfg.TEST.NUM_SPATIAL_CROPS,
             cfg.MODEL.NUM_CLASSES,
             len(test_loader),
+            cfg.DATA.MULTI_LABEL,
+            cfg.DATA.ENSEMBLE_METHOD,
         )
 
     # # Perform multi-view test on the entire dataset.

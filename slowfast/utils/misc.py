@@ -6,6 +6,7 @@ import math
 import numpy as np
 import os
 from datetime import datetime
+import psutil
 import torch
 from fvcore.nn.flop_count import flop_count
 from matplotlib import pyplot as plt
@@ -13,6 +14,7 @@ from torch import nn
 
 import slowfast.utils.logging as logging
 from slowfast.datasets.utils import pack_pathway_output
+from slowfast.models.batchnorm_helper import SubBatchNorm3d
 
 logger = logging.get_logger(__name__)
 
@@ -38,10 +40,24 @@ def params_count(model):
 
 def gpu_mem_usage():
     """
-    Compute the GPU memory usage for the current device (MB).
+    Compute the GPU memory usage for the current device (GB).
     """
     mem_usage_bytes = torch.cuda.max_memory_allocated()
-    return mem_usage_bytes / (1024 * 1024)
+    return mem_usage_bytes / 1024 ** 3
+
+
+def cpu_mem_usage():
+    """
+    Compute the system memory (RAM) usage for the current device (GB).
+    Returns:
+        usage (float): used memory (GB).
+        total (float): total memory (GB).
+    """
+    vram = psutil.virtual_memory()
+    usage = (vram.total - vram.available) / 1024 ** 3
+    total = vram.total / 1024 ** 3
+
+    return usage, total
 
 
 def get_flop_stats(model, cfg, is_train):
@@ -160,3 +176,21 @@ def frozen_bn_stats(model):
     for m in model.modules():
         if isinstance(m, nn.BatchNorm3d):
             m.eval()
+
+
+def aggregate_split_bn_stats(module):
+    """
+    Recursively find all SubBN modules and aggregate sub-BN stats.
+    Args:
+        module (nn.Module)
+    Returns:
+        count (int): number of SubBN module found.
+    """
+    count = 0
+    for child in module.children():
+        if isinstance(child, SubBatchNorm3d):
+            child.aggregate_stats()
+            count += 1
+        else:
+            count += aggregate_split_bn_stats(child)
+    return count

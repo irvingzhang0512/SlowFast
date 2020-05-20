@@ -32,6 +32,17 @@ _C.BN.NUM_BATCHES_PRECISE = 200
 # Weight decay value that applies on BN.
 _C.BN.WEIGHT_DECAY = 0.0
 
+# Norm type, options include `batchnorm`, `sub_batchnorm`, `sync_batchnorm`
+_C.BN.NORM_TYPE = "batchnorm"
+
+# Parameter for SplitBatchNorm, where it splits the batch dimension into
+# NUM_SPLITS splits, and run BN on each of them separately independently.
+_C.BN.NUM_SPLITS = 1
+
+# Parameter for NaiveSyncBatchNorm3d, where the stats across `NUM_SYNC_DEVICES`
+# devices will be synchronized.
+_C.BN.NUM_SYNC_DEVICES = 1
+
 
 # ---------------------------------------------------------------------------- #
 # Training options.
@@ -265,6 +276,16 @@ _C.DATA.INV_UNIFORM_SAMPLE = False
 # If True, perform random horizontal flip on the video frames during training.
 _C.DATA.RANDOM_FLIP = True
 
+# If True, calculdate the map as metric.
+_C.DATA.MULTI_LABEL = False
+
+# Method to perform the ensemble, options include "sum" and "max".
+_C.DATA.ENSEMBLE_METHOD = "sum"
+
+# If True, revert the default input channel (RBG <-> BGR).
+_C.DATA.REVERSE_INPUT_CHANNEL = False
+
+
 # ---------------------------------------------------------------------------- #
 # Optimizer options
 # ---------------------------------------------------------------------------- #
@@ -339,6 +360,9 @@ _C.RNG_SEED = 1
 # Log period in iters.
 _C.LOG_PERIOD = 10
 
+# If True, log the model info.
+_C.LOG_MODEL_INFO = True
+
 # Distributed backend.
 _C.DIST_BACKEND = "nccl"
 
@@ -352,6 +376,9 @@ _C.BENCHMARK.NUM_EPOCHS = 5
 
 # Log period in iters for data loading benchmark.
 _C.BENCHMARK.LOG_PERIOD = 100
+
+# If True, shuffle dataloader for epoch during benchmark.
+_C.BENCHMARK.SHUFFLE = True
 
 
 # ---------------------------------------------------------------------------- #
