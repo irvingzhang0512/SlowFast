@@ -32,6 +32,17 @@ _C.BN.NUM_BATCHES_PRECISE = 200
 # Weight decay value that applies on BN.
 _C.BN.WEIGHT_DECAY = 0.0
 
+# Norm type, options include `batchnorm`, `sub_batchnorm`, `sync_batchnorm`
+_C.BN.NORM_TYPE = "batchnorm"
+
+# Parameter for SubBatchNorm, where it splits the batch dimension into
+# NUM_SPLITS splits, and run BN on each of them separately independently.
+_C.BN.NUM_SPLITS = 1
+
+# Parameter for NaiveSyncBatchNorm3d, where the stats across `NUM_SYNC_DEVICES`
+# devices will be synchronized.
+_C.BN.NUM_SYNC_DEVICES = 1
+
 
 # ---------------------------------------------------------------------------- #
 # Training options.
@@ -64,6 +75,7 @@ _C.TRAIN.CHECKPOINT_TYPE = "pytorch"
 
 # If True, perform inflation when loading checkpoint.
 _C.TRAIN.CHECKPOINT_INFLATE = False
+
 
 # ---------------------------------------------------------------------------- #
 # Testing options
@@ -265,6 +277,16 @@ _C.DATA.INV_UNIFORM_SAMPLE = False
 # If True, perform random horizontal flip on the video frames during training.
 _C.DATA.RANDOM_FLIP = True
 
+# If True, calculdate the map as metric.
+_C.DATA.MULTI_LABEL = False
+
+# Method to perform the ensemble, options include "sum" and "max".
+_C.DATA.ENSEMBLE_METHOD = "sum"
+
+# If True, revert the default input channel (RBG <-> BGR).
+_C.DATA.REVERSE_INPUT_CHANNEL = False
+
+
 # ---------------------------------------------------------------------------- #
 # Optimizer options
 # ---------------------------------------------------------------------------- #
@@ -339,6 +361,9 @@ _C.RNG_SEED = 1
 # Log period in iters.
 _C.LOG_PERIOD = 10
 
+# If True, log the model info.
+_C.LOG_MODEL_INFO = True
+
 # Distributed backend.
 _C.DIST_BACKEND = "nccl"
 
@@ -352,6 +377,9 @@ _C.BENCHMARK.NUM_EPOCHS = 5
 
 # Log period in iters for data loading benchmark.
 _C.BENCHMARK.LOG_PERIOD = 100
+
+# If True, shuffle dataloader for epoch during benchmark.
+_C.BENCHMARK.SHUFFLE = True
 
 
 # ---------------------------------------------------------------------------- #
@@ -461,6 +489,63 @@ _C.AVA.GROUNDTRUTH_FILE = "ava_val_v2.2.csv"
 
 # Backend to process image, includes `pytorch` and `cv2`.
 _C.AVA.IMG_PROC_BACKEND = "cv2"
+
+# ---------------------------------------------------------------------------- #
+# Multigrid training options
+# See https://arxiv.org/abs/1912.00998 for details about multigrid training.
+# ---------------------------------------------------------------------------- #
+_C.MULTIGRID = CfgNode()
+
+# Multigrid training allows us to train for more epochs with fewer iterations.
+# This hyperparameter specifies how many times more epochs to train.
+# The default setting in paper trains for 1.5x more epochs than baseline.
+_C.MULTIGRID.EPOCH_FACTOR = 1.5
+
+# Enable short cycles.
+_C.MULTIGRID.SHORT_CYCLE = False
+# Short cycle additional spatial dimensions relative to the default crop size.
+_C.MULTIGRID.SHORT_CYCLE_FACTORS = [0.5, 0.5 ** 0.5]
+
+_C.MULTIGRID.LONG_CYCLE = False
+# (Temporal, Spatial) dimensions relative to the default shape.
+_C.MULTIGRID.LONG_CYCLE_FACTORS = [
+    (0.25, 0.5 ** 0.5),
+    (0.5, 0.5 ** 0.5),
+    (0.5, 1),
+    (1, 1),
+]
+
+# While a standard BN computes stats across all examples in a GPU,
+# for multigrid training we fix the number of clips to compute BN stats on.
+# See https://arxiv.org/abs/1912.00998 for details.
+_C.MULTIGRID.BN_BASE_SIZE = 8
+
+# Multigrid training epochs are not proportional to actual training time or
+# computations, so _C.TRAIN.EVAL_PERIOD leads to too frequent or rare
+# evaluation. We use a multigrid-specific rule to determine when to evaluate:
+# This hyperparameter defines how many times to evaluate a model per long
+# cycle shape.
+_C.MULTIGRID.EVAL_FREQ = 3
+
+# No need to specify; Set automatically and used as global variables.
+_C.MULTIGRID.LONG_CYCLE_SAMPLING_RATE = 0
+_C.MULTIGRID.DEFAULT_B = 0
+_C.MULTIGRID.DEFAULT_T = 0
+_C.MULTIGRID.DEFAULT_S = 0
+
+# -----------------------------------------------------------------------------
+# Tensorboard Visualization Options
+# -----------------------------------------------------------------------------
+_C.TENSORBOARD = CfgNode()
+
+# Log to summary writer, this will automatically.
+# log loss, lr and metrics during train/eval.
+_C.TENSORBOARD.ENABLE = False
+
+# Path to directory for tensorboard logs
+# Default to to cfg.OUTPUT_DIR/runs-{cfg.TRAIN.DATASET}.
+_C.TENSORBOARD.LOG_DIR = ""
+
 
 # Add custom config with default values.
 custom_config.add_custom_config(_C)
