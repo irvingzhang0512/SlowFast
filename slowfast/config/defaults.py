@@ -17,12 +17,6 @@ _C = CfgNode()
 # ---------------------------------------------------------------------------- #
 _C.BN = CfgNode()
 
-# BN epsilon.
-_C.BN.EPSILON = 1e-5
-
-# BN momentum.
-_C.BN.MOMENTUM = 0.1
-
 # Precise BN stats.
 _C.BN.USE_PRECISE_STATS = False
 
@@ -231,6 +225,9 @@ _C.DATA = CfgNode()
 
 # The path to the data directory.
 _C.DATA.PATH_TO_DATA_DIR = ""
+
+# The separator used between path and label.
+_C.DATA.PATH_LABEL_SEPARATOR = " "
 
 # Video path prefix if any.
 _C.DATA.PATH_PREFIX = ""
@@ -542,10 +539,41 @@ _C.TENSORBOARD = CfgNode()
 # log loss, lr and metrics during train/eval.
 _C.TENSORBOARD.ENABLE = False
 
-# Path to directory for tensorboard logs
+# Path to directory for tensorboard logs.
 # Default to to cfg.OUTPUT_DIR/runs-{cfg.TRAIN.DATASET}.
 _C.TENSORBOARD.LOG_DIR = ""
+# Path to a json file providing class_name - id mapping
+# in the format {"class_name1": id1, "class_name2": id2, ...}.
+# This file must be provided to enable plotting confusion matrix
+# by a subset or parent categories.
+_C.TENSORBOARD.CLASS_NAMES_PATH = ""
 
+# Path to a json file for categories -> classes mapping
+# in the format {"parent_class": ["child_class1", "child_class2",...], ...}.
+_C.TENSORBOARD.CATEGORIES_PATH = ""
+
+# Config for confusion matrices visualization.
+_C.TENSORBOARD.CONFUSION_MATRIX = CfgNode()
+# Visualize confusion matrix.
+_C.TENSORBOARD.CONFUSION_MATRIX.ENABLE = False
+# Figure size of the confusion matrices plotted.
+_C.TENSORBOARD.CONFUSION_MATRIX.FIGSIZE = [8, 8]
+# Path to a subset of categories to visualize.
+# File contains class names separated by newline characters.
+_C.TENSORBOARD.CONFUSION_MATRIX.SUBSET_PATH = ""
+
+# Config for histogram visualization.
+_C.TENSORBOARD.HISTOGRAM = CfgNode()
+# Visualize histograms.
+_C.TENSORBOARD.HISTOGRAM.ENABLE = False
+# Path to a subset of classes to plot histograms.
+# Class names must be separated by newline characters.
+_C.TENSORBOARD.HISTOGRAM.SUBSET_PATH = ""
+# Visualize top-k most predicted classes on histograms for each
+# chosen true label.
+_C.TENSORBOARD.HISTOGRAM.TOPK = 10
+# Figure size of the histograms plotted.
+_C.TENSORBOARD.HISTOGRAM.FIGSIZE = [8, 8]
 
 # Add custom config with default values.
 custom_config.add_custom_config(_C)
