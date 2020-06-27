@@ -10,6 +10,7 @@ import slowfast.utils.checkpoint as cu
 import slowfast.utils.distributed as du
 import slowfast.utils.logging as logging
 import slowfast.utils.misc as misc
+import slowfast.utils.tensorboard_vis as tb
 from slowfast.datasets import loader
 from slowfast.models import build_model
 from slowfast.utils.meters import AVAMeter, TestMeter
@@ -18,7 +19,7 @@ logger = logging.get_logger(__name__)
 
 
 @torch.no_grad()
-def perform_test(test_loader, model, test_meter, cfg):
+def perform_test(test_loader, model, test_meter, cfg, writer=None):
     """
     For classification:
     Perform mutli-view testing that uniformly samples N clips from a video along
@@ -35,6 +36,8 @@ def perform_test(test_loader, model, test_meter, cfg):
             results.
         cfg (CfgNode): configs. Details can be found in
             slowfast/config/defaults.py
+        writer (TensorboardWriter object, optional): TensorboardWriter object
+            to writer Tensorboard log.
     """
     # Enable eval mode.
     model.eval()
@@ -99,8 +102,14 @@ def perform_test(test_loader, model, test_meter, cfg):
             test_meter.log_iter_stats(cur_iter)
 
         test_meter.iter_tic()
-
     # Log epoch stats and print the final testing results.
+    if writer is not None:
+        all_preds_cpu = [pred.clone().detach().cpu() for pred in test_meter.video_preds]
+        all_labels_cpu = [label.clone().detach().cpu() for label in test_meter.video_labels]
+        writer.plot_eval(
+            preds=all_preds_cpu, labels=all_labels_cpu
+        )
+
     test_meter.finalize_metrics()
     test_meter.reset()
 
@@ -128,7 +137,7 @@ def test(cfg):
     # Build the video model and print model statistics.
     model = build_model(cfg)
     if du.is_master_proc() and cfg.LOG_MODEL_INFO:
-        misc.log_model_info(model, cfg, is_train=False)
+        misc.log_model_info(model, cfg, use_train_input=False)
 
     # Load a checkpoint to test if applicable.
     if cfg.TEST.CHECKPOINT_FILE_PATH != "":
@@ -183,5 +192,15 @@ def test(cfg):
             cfg.DATA.ENSEMBLE_METHOD,
         )
 
+    # Set up writer for logging to Tensorboard format.
+    if cfg.TENSORBOARD.ENABLE and du.is_master_proc(
+        cfg.NUM_GPUS * cfg.NUM_SHARDS
+    ):
+        writer = tb.TensorboardWriter(cfg)
+    else:
+        writer = None
+
     # # Perform multi-view test on the entire dataset.
-    perform_test(test_loader, model, test_meter, cfg)
+    perform_test(test_loader, model, test_meter, cfg, writer)
+    if writer is not None:
+        writer.close()
