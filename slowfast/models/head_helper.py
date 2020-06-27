@@ -117,6 +117,8 @@ class ResNetRoIHead(nn.Module):
             s_pool = getattr(self, "s{}_spool".format(pathway))
             pool_out.append(s_pool(out))
 
+        # slow/fast两个分支分别对同一个物体提取roi特征
+        # concat后得到最终特征
         # B C H W.
         x = torch.cat(pool_out, 1)
 
@@ -124,6 +126,7 @@ class ResNetRoIHead(nn.Module):
         if hasattr(self, "dropout"):
             x = self.dropout(x)
 
+        # 对每个roi分别判断类别
         x = x.view(x.shape[0], -1)
         x = self.projection(x)
         x = self.act(x)

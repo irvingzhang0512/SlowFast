@@ -21,6 +21,10 @@ logger = logging.get_logger(__name__)
 @DATASET_REGISTRY.register()
 class Ssv2(torch.utils.data.Dataset):
     """
+    something-something-v2 的原始数据形式是：
+    一个文件夹，包含一大堆视频（没有分类）
+    若干标签文件，包括
+
     Something-Something v2 (SSV2) video loader. Construct the SSV2 video loader,
     then sample clips from the videos. For training and validation, a single
     clip is randomly sampled from every video with random cropping, scaling, and

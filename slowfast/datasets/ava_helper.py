@@ -159,7 +159,6 @@ def get_keyframe_data(boxes_and_labels):
     Args:
         boxes_and_labels (list[dict]): a list which maps from video_idx to a dict.
             Each dict `frame_sec` to a list of boxes and corresponding labels.
-            boxes_and_labels[video_name_str][frame_sec_int] = list(tuple(bbox_int_list, labels_int_list))
 
     Returns:
         keyframe_indices (list): a list of indices of the keyframes.
@@ -175,16 +174,20 @@ def get_keyframe_data(boxes_and_labels):
         """
         return (sec - 900) * FPS
 
+    # video_idx, sec_idx, sec, frame_id
     keyframe_indices = []
+    # tuple(bbox_int_list, labels_int_list)
     keyframe_boxes_and_labels = []
     count = 0
+    # boxes_and_labels[video_id][frame_sec_int] = list(tuple(bbox_int_list, labels_int_list))
     for video_idx in range(len(boxes_and_labels)):
         sec_idx = 0
         keyframe_boxes_and_labels.append([])
         for sec in boxes_and_labels[video_idx].keys():
             if sec not in AVA_VALID_FRAMES:
                 continue
-
+            
+            # 确保当前帧有bbox
             if len(boxes_and_labels[video_idx][sec]) > 0:
                 keyframe_indices.append(
                     (video_idx, sec_idx, sec, sec_to_frame(sec))

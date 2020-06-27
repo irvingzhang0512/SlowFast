@@ -182,6 +182,8 @@ class SlowFast(nn.Module):
 
         temp_kernel = _TEMPORAL_KERNEL_BASIS[cfg.MODEL.ARCH]
 
+        # 对每一路分别操作，实现类是 ResNetBasicStem
+        # 具体操作就是：3DConv + BN + Relu + 3DMaxPool
         self.s1 = stem_helper.VideoModelStem(
             dim_in=cfg.DATA.INPUT_CHANNEL_NUM,
             dim_out=[width_per_group, width_per_group // cfg.SLOWFAST.BETA_INV],
@@ -193,6 +195,10 @@ class SlowFast(nn.Module):
             ],
             norm_module=self.norm_module,
         )
+
+        # 所谓的 fuse，其实就是将fast分支中的信息与slow分支的信息融合
+        # 融合的具体方式就是一个将fast分支进行conv-bn-relu，将结果与slow分支concat
+        # 输出的时候，fast分支的数据不变，slow分支是融合后的
         self.s1_fuse = FuseFastToSlow(
             width_per_group // cfg.SLOWFAST.BETA_INV,
             cfg.SLOWFAST.FUSION_CONV_CHANNEL_RATIO,
@@ -327,6 +333,11 @@ class SlowFast(nn.Module):
         )
 
         if cfg.DETECTION.ENABLE:
+            # 带有检测功能的head
+            # 首先，对每一个分支先对 temporal 进行avg pooling
+            #   即特征图本来是(B, C, T, H , W)，转换为(B, C, H, W)
+            # 其次，根据输入的bbox进行普通的ROIAlign，在进行 AvgPooling，得到shape是(NUM_BBOX, C, 1, 1)
+            # 再次，
             self.head = head_helper.ResNetRoIHead(
                 dim_in=[
                     width_per_group * 32,

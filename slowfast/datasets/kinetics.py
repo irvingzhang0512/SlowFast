@@ -39,6 +39,8 @@ class Kinetics(torch.utils.data.Dataset):
         ...
         path_to_video_N label_N
         ```
+        其中，视频的绝对路径是 os.path.join(cfg.DATA.PATH_PREFIX, path_to_video_N)
+        label_N 指的是数字标签
         Args:
             cfg (CfgNode): configs.
             mode (string): Options includes `train`, `val`, or `test` mode.

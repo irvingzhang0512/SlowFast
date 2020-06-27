@@ -19,7 +19,6 @@ class Ava(torch.utils.data.Dataset):
     """
     AVA Dataset
     """
-
     def __init__(self, cfg, split):
         self.cfg = cfg
         self._split = split
@@ -64,29 +63,34 @@ class Ava(torch.utils.data.Dataset):
         ) = ava_helper.load_image_lists(cfg, is_train=(self._split == "train"))
 
         # 输出一个字典
+        # 用来保存某个视频、某一帧的所有bbox以及对应的标签
         # boxes_and_labels[video_name_str][frame_sec_int] = list(tuple(bbox_int_list, labels_int_list))
         # Loading annotations for boxes and labels.
-        boxes_and_labels = ava_helper.load_boxes_and_labels(
-            cfg, mode=self._split
-        )
+        boxes_and_labels = ava_helper.load_boxes_and_labels(cfg,
+                                                            mode=self._split)
 
         assert len(boxes_and_labels) == len(self._image_paths)
 
+        # 将上面的字典转换为list
+        # 本质就是将 video_name_str 转换为 video_id
         boxes_and_labels = [
             boxes_and_labels[self._video_idx_to_name[i]]
             for i in range(len(self._image_paths))
         ]
 
         # Get indices of keyframes and corresponding boxes and labels.
+        # 所有视频中有数据的sec对应一个样本
+        # keyframe_indices[idx] = list(tuple(video_idx, sec_idx, sec, frame_id))
+        # keyframe_boxes_and_labels[idx] = list(tuple(bbox_int_list, labels_int_list))
         (
             self._keyframe_indices,
             self._keyframe_boxes_and_labels,
         ) = ava_helper.get_keyframe_data(boxes_and_labels)
 
         # Calculate the number of used boxes.
+        # 计算bbox的数量
         self._num_boxes_used = ava_helper.get_num_boxes_used(
-            self._keyframe_indices, self._keyframe_boxes_and_labels
-        )
+            self._keyframe_indices, self._keyframe_boxes_and_labels)
 
         self.print_summary()
 
@@ -95,8 +99,7 @@ class Ava(torch.utils.data.Dataset):
         logger.info("Split: {}".format(self._split))
         logger.info("Number of videos: {}".format(len(self._image_paths)))
         total_frames = sum(
-            len(video_img_paths) for video_img_paths in self._image_paths
-        )
+            len(video_img_paths) for video_img_paths in self._image_paths)
         logger.info("Number of frames: {}".format(total_frames))
         logger.info("Number of key frames: {}".format(len(self)))
         logger.info("Number of boxes: {}.".format(self._num_boxes_used))
@@ -136,48 +139,48 @@ class Ava(torch.utils.data.Dataset):
                 max_size=self._jitter_max_scale,
                 boxes=boxes,
             )
-            imgs, boxes = cv2_transform.random_crop_list(
-                imgs, self._crop_size, order="HWC", boxes=boxes
-            )
+            imgs, boxes = cv2_transform.random_crop_list(imgs,
+                                                         self._crop_size,
+                                                         order="HWC",
+                                                         boxes=boxes)
 
             if self.random_horizontal_flip:
                 # random flip
-                imgs, boxes = cv2_transform.horizontal_flip_list(
-                    0.5, imgs, order="HWC", boxes=boxes
-                )
+                imgs, boxes = cv2_transform.horizontal_flip_list(0.5,
+                                                                 imgs,
+                                                                 order="HWC",
+                                                                 boxes=boxes)
         elif self._split == "val":
             # Short side to test_scale. Non-local and STRG uses 256.
             imgs = [cv2_transform.scale(self._crop_size, img) for img in imgs]
             boxes = [
-                cv2_transform.scale_boxes(
-                    self._crop_size, boxes[0], height, width
-                )
+                cv2_transform.scale_boxes(self._crop_size, boxes[0], height,
+                                          width)
             ]
             imgs, boxes = cv2_transform.spatial_shift_crop_list(
-                self._crop_size, imgs, 1, boxes=boxes
-            )
+                self._crop_size, imgs, 1, boxes=boxes)
 
             if self._test_force_flip:
-                imgs, boxes = cv2_transform.horizontal_flip_list(
-                    1, imgs, order="HWC", boxes=boxes
-                )
+                imgs, boxes = cv2_transform.horizontal_flip_list(1,
+                                                                 imgs,
+                                                                 order="HWC",
+                                                                 boxes=boxes)
         elif self._split == "test":
             # Short side to test_scale. Non-local and STRG uses 256.
             imgs = [cv2_transform.scale(self._crop_size, img) for img in imgs]
             boxes = [
-                cv2_transform.scale_boxes(
-                    self._crop_size, boxes[0], height, width
-                )
+                cv2_transform.scale_boxes(self._crop_size, boxes[0], height,
+                                          width)
             ]
 
             if self._test_force_flip:
-                imgs, boxes = cv2_transform.horizontal_flip_list(
-                    1, imgs, order="HWC", boxes=boxes
-                )
+                imgs, boxes = cv2_transform.horizontal_flip_list(1,
+                                                                 imgs,
+                                                                 order="HWC",
+                                                                 boxes=boxes)
         else:
-            raise NotImplementedError(
-                "Unsupported split mode {}".format(self._split)
-            )
+            raise NotImplementedError("Unsupported split mode {}".format(
+                self._split))
 
         # Convert image to CHW keeping BGR order.
         imgs = [cv2_transform.HWC2CHW(img) for img in imgs]
@@ -188,9 +191,8 @@ class Ava(torch.utils.data.Dataset):
         imgs = [
             np.ascontiguousarray(
                 # img.reshape((3, self._crop_size, self._crop_size))
-                img.reshape((3, imgs[0].shape[1], imgs[0].shape[2]))
-            ).astype(np.float32)
-            for img in imgs
+                img.reshape((3, imgs[0].shape[1], imgs[0].shape[2])
+                            )).astype(np.float32) for img in imgs
         ]
 
         # Do color augmentation (after divided by 255.0).
@@ -216,14 +218,12 @@ class Ava(torch.utils.data.Dataset):
                 img,
                 np.array(self._data_mean, dtype=np.float32),
                 np.array(self._data_std, dtype=np.float32),
-            )
-            for img in imgs
+            ) for img in imgs
         ]
 
         # Concat list of images to single ndarray.
-        imgs = np.concatenate(
-            [np.expand_dims(img, axis=1) for img in imgs], axis=1
-        )
+        imgs = np.concatenate([np.expand_dims(img, axis=1) for img in imgs],
+                              axis=1)
 
         if not self._use_bgr:
             # Convert image format from BGR to RGB.
@@ -231,9 +231,8 @@ class Ava(torch.utils.data.Dataset):
 
         imgs = np.ascontiguousarray(imgs)
         imgs = torch.from_numpy(imgs)
-        boxes = cv2_transform.clip_boxes_to_image(
-            boxes[0], imgs[0].shape[1], imgs[0].shape[2]
-        )
+        boxes = cv2_transform.clip_boxes_to_image(boxes[0], imgs[0].shape[1],
+                                                  imgs[0].shape[2])
         return imgs, boxes
 
     def _images_and_boxes_preprocessing(self, imgs, boxes):
@@ -258,8 +257,13 @@ class Ava(torch.utils.data.Dataset):
         # range of [0, 1].
         boxes[:, [0, 2]] *= width
         boxes[:, [1, 3]] *= height
+        # 确保bbox的数值都在有效范围内[0, height -1]/[0, width-1]
         boxes = transform.clip_boxes_to_image(boxes, height, width)
 
+        # 之后进行数据预处理
+        # 训练集：随机短边resize，random crop，random flip
+        # 验证集：随机短边resize，center crop
+        # 测试集：随机短边resize
         if self._split == "train":
             # Train split
             imgs, boxes = transform.random_short_side_scale_jitter(
@@ -268,9 +272,9 @@ class Ava(torch.utils.data.Dataset):
                 max_size=self._jitter_max_scale,
                 boxes=boxes,
             )
-            imgs, boxes = transform.random_crop(
-                imgs, self._crop_size, boxes=boxes
-            )
+            imgs, boxes = transform.random_crop(imgs,
+                                                self._crop_size,
+                                                boxes=boxes)
 
             # Random flip.
             imgs, boxes = transform.horizontal_flip(0.5, imgs, boxes=boxes)
@@ -285,9 +289,10 @@ class Ava(torch.utils.data.Dataset):
             )
 
             # Apply center crop for val split
-            imgs, boxes = transform.uniform_crop(
-                imgs, size=self._crop_size, spatial_idx=1, boxes=boxes
-            )
+            imgs, boxes = transform.uniform_crop(imgs,
+                                                 size=self._crop_size,
+                                                 spatial_idx=1,
+                                                 boxes=boxes)
 
             if self._test_force_flip:
                 imgs, boxes = transform.horizontal_flip(1, imgs, boxes=boxes)
@@ -304,9 +309,8 @@ class Ava(torch.utils.data.Dataset):
             if self._test_force_flip:
                 imgs, boxes = transform.horizontal_flip(1, imgs, boxes=boxes)
         else:
-            raise NotImplementedError(
-                "{} split not supported yet!".format(self._split)
-            )
+            raise NotImplementedError("{} split not supported yet!".format(
+                self._split))
 
         # Do color augmentation (after divided by 255.0).
         if self._split == "train" and self._use_color_augmentation:
@@ -337,9 +341,8 @@ class Ava(torch.utils.data.Dataset):
             # Note that Kinetics pre-training uses RGB!
             imgs = imgs[:, [2, 1, 0], ...]
 
-        boxes = transform.clip_boxes_to_image(
-            boxes, self._crop_size, self._crop_size
-        )
+        boxes = transform.clip_boxes_to_image(boxes, self._crop_size,
+                                              self._crop_size)
 
         return imgs, boxes
 
@@ -357,7 +360,11 @@ class Ava(torch.utils.data.Dataset):
             extra_data (dict): a dict containing extra data fields, like "boxes",
                 "ori_boxes" and "metadata".
         """
+        # 这里的idx指的是 keyframe 的 idx
         video_idx, sec_idx, sec, center_idx = self._keyframe_indices[idx]
+
+        # 获取当前帧前后的其他帧，组成输入数据
+        # 具体来说，获取的seq id就是 range(center_idx - _seq_len//2, center_idx + _seq_len//2, _sample_rate)
         # Get the frame idxs for current clip.
         seq = utils.get_sequence(
             center_idx,
@@ -366,6 +373,7 @@ class Ava(torch.utils.data.Dataset):
             num_frames=len(self._image_paths[video_idx]),
         )
 
+        # 获取list(tuple(bboxes_int_list, labels_int_list))
         clip_label_list = self._keyframe_boxes_and_labels[video_idx][sec_idx]
         assert len(clip_label_list) > 0
 
@@ -380,25 +388,25 @@ class Ava(torch.utils.data.Dataset):
         boxes = boxes[:, :4].copy()
         ori_boxes = boxes.copy()
 
+        # 读取一组图片
+        # 如果是pytorch模式，则输出的是 torch.tensor, (t ,h, w, 3)
+        # 如果不是pytorch模式，则输出的是 list[imgs]，(h, w, 3)
         # Load images of current clip.
         image_paths = [self._image_paths[video_idx][frame] for frame in seq]
-        imgs = utils.retry_load_images(
-            image_paths, backend=self.cfg.AVA.IMG_PROC_BACKEND
-        )
+        imgs = utils.retry_load_images(image_paths,
+                                       backend=self.cfg.AVA.IMG_PROC_BACKEND)
         if self.cfg.AVA.IMG_PROC_BACKEND == "pytorch":
             # T H W C -> T C H W.
             imgs = imgs.permute(0, 3, 1, 2)
             # Preprocess images and boxes.
-            imgs, boxes = self._images_and_boxes_preprocessing(
-                imgs, boxes=boxes
-            )
+            imgs, boxes = self._images_and_boxes_preprocessing(imgs,
+                                                               boxes=boxes)
             # T C H W -> C T H W.
             imgs = imgs.permute(1, 0, 2, 3)
         else:
             # Preprocess images and boxes
-            imgs, boxes = self._images_and_boxes_preprocessing_cv2(
-                imgs, boxes=boxes
-            )
+            imgs, boxes = self._images_and_boxes_preprocessing_cv2(imgs,
+                                                                   boxes=boxes)
 
         # Construct label arrays.
         label_arrs = np.zeros((len(labels), self._num_classes), dtype=np.int32)
@@ -410,6 +418,7 @@ class Ava(torch.utils.data.Dataset):
                 assert label >= 1 and label <= 80
                 label_arrs[i][label - 1] = 1
 
+        # 分别为 fast/slow 分支构建输入图片
         imgs = utils.pack_pathway_output(self.cfg, imgs)
         metadata = [[video_idx, sec]] * len(boxes)
 

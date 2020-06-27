@@ -35,6 +35,7 @@ def random_short_side_scale_jitter(
     else:
         size = int(round(np.random.uniform(min_size, max_size)))
 
+    # 如果短边与目标size刚好相同，那就不用resize，直接退出
     height = images.shape[2]
     width = images.shape[3]
     if (width <= height and width == size) or (
