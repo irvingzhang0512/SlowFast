@@ -1,0 +1,10 @@
+.vscode/
+build/
+examples/
+logs/
+third_party/
+slowfast.egg-info/
+__pycache__/
+data/
+test*.ipynb
+nohup.out

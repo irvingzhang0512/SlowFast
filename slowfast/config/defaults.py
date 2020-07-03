@@ -101,6 +101,17 @@ _C.TEST.CHECKPOINT_TYPE = "pytorch"
 
 
 # -----------------------------------------------------------------------------
+# MobileNet options
+# -----------------------------------------------------------------------------
+_C.MOBILENET = CfgNode()
+
+# Transformation function.
+_C.MOBILENET.WIDTH_MULT = 1.
+_C.MOBILENET.ROUND_NEAREST = 8
+_C.MOBILENET.IN_CHANNELS = 32
+_C.MOBILENET.OUT_CHANNELS = 1280
+
+# -----------------------------------------------------------------------------
 # ResNet options
 # -----------------------------------------------------------------------------
 _C.RESNET = CfgNode()
