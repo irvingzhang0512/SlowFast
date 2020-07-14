@@ -1,0 +1,9 @@
+dataset_tools/
+build/
+.vscode/
+data/
+logs/
+slowfast.egg-info/
+third_party/
+__pycache__/
+examples/
