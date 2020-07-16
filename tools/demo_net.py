@@ -132,8 +132,7 @@ def demo(cfg):
         dtron2_cfg.merge_from_file(model_zoo.get_config_file(dtron2_cfg_file))
         dtron2_cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5
         dtron2_cfg.MODEL.WEIGHTS = (
-            cfg.DEMO.DETECTRON2_OBJECT_DETECTION_MODEL_WEIGHTS
-        )
+            cfg.DEMO.DETECTRON2_OBJECT_DETECTION_MODEL_WEIGHTS)
         logger.info("Initialize detectron2 model.")
         object_predictor = DefaultPredictor(dtron2_cfg)
         # Load the labels of AVA dataset
@@ -162,14 +161,18 @@ def demo(cfg):
         if len(frames) != seq_len:
             frame_processed = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             frame_processed = scale(cfg.DATA.TEST_CROP_SIZE, frame_processed)
-            frames.append(frame_processed)
+            frames.append(frame_processed / 255.)
             if cfg.DETECTION.ENABLE and len(frames) == seq_len // 2 - 1:
                 mid_frame = frame
 
         if len(frames) == seq_len:
             start = time()
             if cfg.DETECTION.ENABLE:
-                outputs = object_predictor(mid_frame)
+                if cfg.DEMO.USE_MID_FRAME:
+                    detect_frame = mid_frame
+                else:
+                    detect_frame = frame
+                outputs = object_predictor(detect_frame)
                 fields = outputs["instances"]._fields
                 pred_classes = fields["pred_classes"]
                 selection_mask = pred_classes == 0
@@ -186,9 +189,8 @@ def demo(cfg):
                     [torch.full((boxes.shape[0], 1), float(0)).cuda(), boxes],
                     axis=1,
                 )
-            inputs = tensor_normalize(
-                torch.as_tensor(frames), cfg.DATA.MEAN, cfg.DATA.STD
-            )
+            inputs = tensor_normalize(torch.from_numpy(np.array(frames)),
+                                      cfg.DATA.MEAN, cfg.DATA.STD)
 
             # T H W C -> C T H W.
             inputs = inputs.permute(3, 0, 1, 2)
@@ -197,15 +199,13 @@ def demo(cfg):
             inputs = inputs.unsqueeze(0)
             if cfg.MODEL.ARCH in cfg.MODEL.SINGLE_PATHWAY_ARCH:
                 # Sample frames for the fast pathway.
-                index = torch.linspace(
-                    0, inputs.shape[2] - 1, cfg.DATA.NUM_FRAMES
-                ).long()
+                index = torch.linspace(0, inputs.shape[2] - 1,
+                                       cfg.DATA.NUM_FRAMES).long()
                 inputs = [torch.index_select(inputs, 2, index)]
             elif cfg.MODEL.ARCH in cfg.MODEL.MULTI_PATHWAY_ARCH:
                 # Sample frames for the fast pathway.
-                index = torch.linspace(
-                    0, inputs.shape[2] - 1, cfg.DATA.NUM_FRAMES
-                ).long()
+                index = torch.linspace(0, inputs.shape[2] - 1,
+                                       cfg.DATA.NUM_FRAMES).long()
                 fast_pathway = torch.index_select(inputs, 2, index)
 
                 # Sample frames for the slow pathway.
@@ -217,16 +217,14 @@ def demo(cfg):
                 slow_pathway = torch.index_select(fast_pathway, 2, index)
                 inputs = [slow_pathway, fast_pathway]
             else:
-                raise NotImplementedError(
-                    "Model arch {} is not in {}".format(
-                        cfg.MODEL.ARCH,
-                        cfg.MODEL.SINGLE_PATHWAY_ARCH
-                        + cfg.MODEL.MULTI_PATHWAY_ARCH,
-                    )
-                )
+                raise NotImplementedError("Model arch {} is not in {}".format(
+                    cfg.MODEL.ARCH,
+                    cfg.MODEL.SINGLE_PATHWAY_ARCH +
+                    cfg.MODEL.MULTI_PATHWAY_ARCH,
+                ))
 
             # Transfer the data to the current GPU device.
-            if isinstance(inputs, (list,)):
+            if isinstance(inputs, (list, )):
                 for i in range(len(inputs)):
                     inputs[i] = inputs[i].cuda(non_blocking=True)
             else:
@@ -256,45 +254,36 @@ def demo(cfg):
                 label_ids = [
                     np.nonzero(pred_mask)[0] for pred_mask in pred_masks
                 ]
-                pred_labels = [
-                    [labels[label_id] for label_id in perbox_label_ids]
-                    for perbox_label_ids in label_ids
-                ]
+                pred_labels = [[
+                    labels[label_id] for label_id in perbox_label_ids
+                ] for perbox_label_ids in label_ids]
                 # I'm unsure how to detectron2 rescales boxes to image original size, so I use
                 #   input boxes of slowfast and rescale back it instead, it's safer and even if boxes
                 #   was not rescaled by cv2_transform.rescale_boxes, it still works.
                 boxes = boxes.cpu().detach().numpy()
-                ratio = (
-                    np.min(
-                        [
-                            frame_provider.display_height,
-                            frame_provider.display_width,
-                        ]
-                    )
-                    / cfg.DATA.TEST_CROP_SIZE
-                )
+                ratio = (np.min([
+                    frame_provider.display_height,
+                    frame_provider.display_width,
+                ]) / cfg.DATA.TEST_CROP_SIZE)
                 boxes = boxes[:, 1:] * ratio
             else:
-                ## Option 1: single label inference selected from the highest probability entry.
+                # # Option 1: single label inference selected from the highest probability entry.
                 # label_id = preds.argmax(-1).cpu()
                 # pred_label = labels[label_id]
                 # Option 2: multi-label inferencing selected from probability entries > threshold.
-                label_ids = (
-                    torch.nonzero(preds.squeeze() > 0.1)
-                    .reshape(-1)
-                    .cpu()
-                    .detach()
-                    .numpy()
-                )
+                label_ids = (torch.nonzero(
+                    preds.squeeze() > 0.1).reshape(-1).cpu().detach().numpy())
                 pred_labels = labels[label_ids]
                 logger.info(pred_labels)
                 if not list(pred_labels):
                     pred_labels = ["Unknown"]
 
-            # # option 1: remove the oldest frame in the buffer to make place for the new one.
-            # frames.pop(0)
-            # option 2: empty the buffer
-            frames = []
+            if cfg.DEMO.PREDICT_EVERY_FRAME:
+                # option 1: remove the oldest frame in the buffer to make place for the new one.
+                frames.pop(0)
+            else:
+                # option 2: empty the buffer
+                frames = []
             s = time() - start
 
         if cfg.DETECTION.ENABLE and pred_labels and boxes.any():
@@ -310,8 +299,7 @@ def demo(cfg):
                 for label in box_labels:
                     label_origin[-1] -= 5
                     (label_width, label_height), _ = cv2.getTextSize(
-                        label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2
-                    )
+                        label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
                     cv2.rectangle(
                         frame,
                         (label_origin[0], label_origin[1] + 5),

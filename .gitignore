@@ -7,3 +7,4 @@ slowfast.egg-info/
 third_party/
 __pycache__/
 examples/
+*.pkl
