@@ -51,7 +51,7 @@ class VideoReader(object):
     def __next__(self):
         was_read, frame = self.cap.read()
         if not was_read:
-            ## reiterate the video instead of quiting.
+            # reiterate the video instead of quiting.
             self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
             frame = None
 
@@ -152,12 +152,21 @@ def demo(cfg):
     frames = []
     pred_labels = []
     s = 0.0
+    t1 = time()
+    data_time = 0.
+    predict_time = 0.
+    show_time = .0
+    iter_time = .0
+    detect_time = .0
+    action_data_time = .0
+    action_time = .0
+
+    frames_cnt = 0
     for able_to_read, frame in tqdm.tqdm(frame_provider):
         if not able_to_read:
             # when reaches the end frame, clear the buffer and continue to the next one.
             frames = []
             break
-
         if len(frames) != seq_len:
             frame_processed = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             frame_processed = scale(cfg.DATA.TEST_CROP_SIZE, frame_processed)
@@ -165,6 +174,7 @@ def demo(cfg):
             if cfg.DETECTION.ENABLE and len(frames) == seq_len // 2 - 1:
                 mid_frame = frame
 
+        t2 = time()
         if len(frames) == seq_len:
             start = time()
             if cfg.DETECTION.ENABLE:
@@ -189,9 +199,12 @@ def demo(cfg):
                     [torch.full((boxes.shape[0], 1), float(0)).cuda(), boxes],
                     axis=1,
                 )
+            t5 = time()
             inputs = torch.from_numpy(np.array(frames)).float() / 255.0
+            to_torch_t = time()
+            inputs = inputs.cuda(non_blocking=True)
+            to_cuda_t = time()
             inputs = tensor_normalize(inputs, cfg.DATA.MEAN, cfg.DATA.STD)
-
             # T H W C -> C T H W.
             inputs = inputs.permute(3, 0, 1, 2)
 
@@ -199,13 +212,17 @@ def demo(cfg):
             inputs = inputs.unsqueeze(0)
             if cfg.MODEL.ARCH in cfg.MODEL.SINGLE_PATHWAY_ARCH:
                 # Sample frames for the fast pathway.
-                index = torch.linspace(0, inputs.shape[2] - 1,
-                                       cfg.DATA.NUM_FRAMES).long()
+                index = torch.linspace(0,
+                                       inputs.shape[2] - 1,
+                                       cfg.DATA.NUM_FRAMES,
+                                       device=inputs.device).long()
                 inputs = [torch.index_select(inputs, 2, index)]
             elif cfg.MODEL.ARCH in cfg.MODEL.MULTI_PATHWAY_ARCH:
                 # Sample frames for the fast pathway.
-                index = torch.linspace(0, inputs.shape[2] - 1,
-                                       cfg.DATA.NUM_FRAMES).long()
+                index = torch.linspace(0,
+                                       inputs.shape[2] - 1,
+                                       cfg.DATA.NUM_FRAMES,
+                                       device=inputs.device).long()
                 fast_pathway = torch.index_select(inputs, 2, index)
 
                 # Sample frames for the slow pathway.
@@ -213,6 +230,7 @@ def demo(cfg):
                     0,
                     fast_pathway.shape[2] - 1,
                     fast_pathway.shape[2] // cfg.SLOWFAST.ALPHA,
+                    device=inputs.device,
                 ).long()
                 slow_pathway = torch.index_select(fast_pathway, 2, index)
                 inputs = [slow_pathway, fast_pathway]
@@ -222,14 +240,13 @@ def demo(cfg):
                     cfg.MODEL.SINGLE_PATHWAY_ARCH +
                     cfg.MODEL.MULTI_PATHWAY_ARCH,
                 ))
-
-            # Transfer the data to the current GPU device.
-            if isinstance(inputs, (list, )):
-                for i in range(len(inputs)):
-                    inputs[i] = inputs[i].cuda(non_blocking=True)
-            else:
-                inputs = inputs.cuda(non_blocking=True)
-
+            # # Transfer the data to the current GPU device.
+            # if isinstance(inputs, (list, )):
+            #     for i in range(len(inputs)):
+            #         inputs[i] = inputs[i].cuda(non_blocking=True)
+            # else:
+            #     inputs = inputs.cuda(non_blocking=True)
+            t6 = time()
             # Perform the forward pass.
             if cfg.DETECTION.ENABLE:
                 # When there is nothing in the scene,
@@ -249,7 +266,8 @@ def demo(cfg):
                 if cfg.DEMO.POST_PROCESSING_BY_GPU:
                     pred_masks = preds > cfg.DEMO.ACTION_LABEL_THRESHOLD
                     label_ids = [
-                        torch.nonzero(pred_mask).reshape(-1).cpu().detach().numpy()
+                        torch.nonzero(pred_mask).reshape(
+                            -1).cpu().detach().numpy()
                         for pred_mask in pred_masks
                     ]
                     pred_labels = [[
@@ -305,6 +323,7 @@ def demo(cfg):
                 frames = []
             s = time() - start
 
+        t3 = time()
         if cfg.DETECTION.ENABLE and pred_labels and boxes.any():
             for box, box_labels in zip(boxes.astype(int), pred_labels):
                 cv2.rectangle(
@@ -378,5 +397,26 @@ def demo(cfg):
         key = cv2.waitKey(1)
         if key == 27:
             break
+        t4 = time()
+        frames_cnt += 1
+        if frames_cnt >= seq_len:
+            cur_frames_cnt = frames_cnt - seq_len + 1
+            data_time += t2 - t1
+            predict_time += t3 - t2
+            show_time += t4 - t3
+            iter_time += t4 - t1
+            detect_time += t5 - t2
+            action_data_time += t6 - t5
+            action_time += t3 - t6
+            print(
+                "data: %.4f detect: %.4f action_data: %.4f, action: %.4f predict: %.4f show: %.4f total: %.4f"
+                % (data_time / cur_frames_cnt, detect_time / cur_frames_cnt,
+                   action_data_time / cur_frames_cnt,
+                   action_time / cur_frames_cnt, predict_time / cur_frames_cnt,
+                   show_time / cur_frames_cnt, iter_time / cur_frames_cnt), )
+            print(
+                "to_torch: %.4f to_tuca: %.4f norm+transpose+expand+build_path: %.4f"
+                % (to_torch_t - t5, to_cuda_t - to_torch_t, t6 - to_cuda_t))
+            t1 = time()
 
     frame_provider.clean()

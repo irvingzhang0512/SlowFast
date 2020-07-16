@@ -263,9 +263,9 @@ def tensor_normalize(tensor, mean, std):
         tensor = tensor.float()
         tensor = tensor / 255.0
     if type(mean) == list:
-        mean = torch.tensor(mean)
+        mean = torch.tensor(mean, device=tensor.device)
     if type(std) == list:
-        std = torch.tensor(std)
+        std = torch.tensor(std, device=tensor.device)
     tensor = tensor - mean
     tensor = tensor / std
     return tensor
