@@ -246,33 +246,52 @@ def demo(cfg):
                 preds = du.all_gather(preds)[0]
 
             if cfg.DETECTION.ENABLE:
-                # This post processing was intendedly assigned to the cpu since my laptop GPU
-                #   RTX 2080 runs out of its memory, if your GPU is more powerful, I'd recommend
-                #   to change this section to make CUDA does the processing.
-                preds = preds.cpu().detach().numpy()
-                pred_masks = preds > 0.1
-                label_ids = [
-                    np.nonzero(pred_mask)[0] for pred_mask in pred_masks
-                ]
-                pred_labels = [[
-                    labels[label_id] for label_id in perbox_label_ids
-                ] for perbox_label_ids in label_ids]
-                # I'm unsure how to detectron2 rescales boxes to image original size, so I use
-                #   input boxes of slowfast and rescale back it instead, it's safer and even if boxes
-                #   was not rescaled by cv2_transform.rescale_boxes, it still works.
-                boxes = boxes.cpu().detach().numpy()
-                ratio = (np.min([
-                    frame_provider.display_height,
-                    frame_provider.display_width,
-                ]) / cfg.DATA.TEST_CROP_SIZE)
-                boxes = boxes[:, 1:] * ratio
+                if cfg.DEMO.POST_PROCESSING_BY_GPU:
+                    pred_masks = preds > cfg.DEMO.ACTION_LABEL_THRESHOLD
+                    label_ids = [
+                        torch.nonzero(pred_mask).reshape(-1).cpu().detach().numpy()
+                        for pred_mask in pred_masks
+                    ]
+                    pred_labels = [[
+                        labels[label_id] for label_id in perbox_label_ids
+                    ] for perbox_label_ids in label_ids]
+                    # I'm unsure how to detectron2 rescales boxes to image original size, so I use
+                    #   input boxes of slowfast and rescale back it instead, it's safer and even if boxes
+                    #   was not rescaled by cv2_transform.rescale_boxes, it still works.
+                    ratio = (np.min([
+                        frame_provider.display_height,
+                        frame_provider.display_width,
+                    ]) / cfg.DATA.TEST_CROP_SIZE)
+                    boxes = (boxes[:, 1:] * ratio).cpu().detach().numpy()
+                else:
+                    # This post processing was intendedly assigned to the cpu since my laptop GPU
+                    #   RTX 2080 runs out of its memory, if your GPU is more powerful, I'd recommend
+                    #   to change this section to make CUDA does the processing.
+                    preds = preds.cpu().detach().numpy()
+                    pred_masks = preds > cfg.DEMO.ACTION_LABEL_THRESHOLD
+                    label_ids = [
+                        np.nonzero(pred_mask)[0] for pred_mask in pred_masks
+                    ]
+                    pred_labels = [[
+                        labels[label_id] for label_id in perbox_label_ids
+                    ] for perbox_label_ids in label_ids]
+                    # I'm unsure how to detectron2 rescales boxes to image original size, so I use
+                    #   input boxes of slowfast and rescale back it instead, it's safer and even if boxes
+                    #   was not rescaled by cv2_transform.rescale_boxes, it still works.
+                    boxes = boxes.cpu().detach().numpy()
+                    ratio = (np.min([
+                        frame_provider.display_height,
+                        frame_provider.display_width,
+                    ]) / cfg.DATA.TEST_CROP_SIZE)
+                    boxes = boxes[:, 1:] * ratio
             else:
                 # # Option 1: single label inference selected from the highest probability entry.
                 # label_id = preds.argmax(-1).cpu()
                 # pred_label = labels[label_id]
                 # Option 2: multi-label inferencing selected from probability entries > threshold.
                 label_ids = (torch.nonzero(
-                    preds.squeeze() > 0.1).reshape(-1).cpu().detach().numpy())
+                    preds.squeeze() > cfg.DEMO.ACTION_LABEL_THRESHOLD).reshape(
+                        -1).cpu().detach().numpy())
                 pred_labels = labels[label_ids]
                 logger.info(pred_labels)
                 if not list(pred_labels):
