@@ -78,6 +78,15 @@ class Kinetics(torch.utils.data.Dataset):
     def _construct_loader(self):
         """
         Construct the video loader.
+        构造函数调用，作用是构建了三个list和一个dict
+        _path_to_videos 记录了所有视频文件的路径
+        _labels 记录了所有视频的标签
+        _spatial_temporal_idx 记录了所有视频的 spatial_temporal_idx
+            对于 train/val 阶段来说，每个输入视频对应一个样本（clip）
+            对于 test 来说，每个输入视频对应 cfg.TEST.NUM_ENSEMBLE_VIEWS * cfg.TEST.NUM_SPATIAL_CROPS 个样本
+            样本编号就是所谓的 spatial_temporal_idx
+        _video_meta 中，key为样本编号（所谓样本，就是上面_spatial_temporal_idx中介绍的概念）
+            value为空字典
         """
         path_to_file = os.path.join(
             self.cfg.DATA.PATH_TO_DATA_DIR, "{}.csv".format(self.mode)
@@ -118,6 +127,7 @@ class Kinetics(torch.utils.data.Dataset):
 
     def __getitem__(self, index):
         """
+        根据视频下标获取对应视频，并进行帧采样
         Given the video index, return the list of frames, label, and video
         index if the video can be fetched and decoded successfully, otherwise
         repeatly find a random video that can be decoded as a replacement.
@@ -136,6 +146,7 @@ class Kinetics(torch.utils.data.Dataset):
         if isinstance(index, tuple):
             index, short_cycle_idx = index
 
+        # 设置一些参数
         if self.mode in ["train", "val"]:
             # -1 indicates random sampling.
             temporal_sample_index = -1
@@ -184,9 +195,14 @@ class Kinetics(torch.utils.data.Dataset):
             self.cfg.MULTIGRID.LONG_CYCLE_SAMPLING_RATE,
             self.cfg.DATA.SAMPLING_RATE,
         )
+
+        # 解码视频，获取其中的一个片段
+        # 如果指定视频不能解码，则随机选择另外一个视频（根据下标随机选择）
         # Try to decode and sample a clip from a video. If the video can not be
         # decoded, repeatly find a random video replacement that can be decoded.
         for _ in range(self._num_retries):
+            # 视频解码方式有两种，torchvision和pyav
+            # 通过 cfg.DATA.DECODING_BACKEND 控制
             video_container = None
             try:
                 video_container = container.get_video_container(
@@ -204,7 +220,8 @@ class Kinetics(torch.utils.data.Dataset):
             if video_container is None:
                 index = random.randint(0, len(self._path_to_videos) - 1)
                 continue
-
+            
+            # 执行解码，并采样
             # Decode video. Meta info is used to perform selective decoding.
             frames = decoder.decode(
                 video_container,
@@ -218,18 +235,24 @@ class Kinetics(torch.utils.data.Dataset):
                 max_spatial_scale=max_scale,
             )
 
+            # 解码失败，再随机选择一个视频，执行一次
             # If decoding failed (wrong format, video is too short, and etc),
             # select another video.
             if frames is None:
                 index = random.randint(0, len(self._path_to_videos) - 1)
                 continue
-
+            
+            # 数据预处理
             # Perform color normalization.
             frames = utils.tensor_normalize(
                 frames, self.cfg.DATA.MEAN, self.cfg.DATA.STD
             )
             # T H W C -> C T H W.
             frames = frames.permute(3, 0, 1, 2)
+            
+            # 数据增强
+            # train 随机短边resize+random crop+random flip
+            # val/test 就是固定resize+左中右三选一（或上中下三选一）切片
             # Perform data augmentation.
             frames = utils.spatial_sampling(
                 frames,
@@ -242,6 +265,9 @@ class Kinetics(torch.utils.data.Dataset):
             )
 
             label = self._labels[index]
+
+            # 为多路输入构建不同的数据
+            # 主要就是针对 slowfast 中的 slow 分支和 fast 分支
             frames = utils.pack_pathway_output(self.cfg, frames)
             return frames, label, index, {}
         else:

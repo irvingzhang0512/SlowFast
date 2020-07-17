@@ -217,6 +217,9 @@ def pyav_decode(
     container, sampling_rate, num_frames, clip_idx, num_clips=10, target_fps=30
 ):
     """
+    如果视频支持 selective decoding （部分解码），则只需要解码视频的一部分即可
+        这里顺便就吧采样执行了
+    如果不支持 selective decording，则解析整个视频，则采样要到后续操作中实现
     Convert the video from its original fps to the target_fps. If the video
     support selective decoding (contain decoding information in the video head),
     the perform temporal selective decoding and sample a clip from the video
@@ -295,6 +298,9 @@ def decode(
 ):
     """
     Decode the video and perform temporal sampling.
+    如果视频长度小于 num_frames * sampling_rate 该怎么办？
+        相关处理会在最终的 temporal_sampling 中实现
+
     Args:
         container (container): pyav container.
         sampling_rate (int): frame sampling rate (interval between two sampled
@@ -361,5 +367,7 @@ def decode(
         num_clips if decode_all_video else 1,
     )
     # Perform temporal sampling from the decoded video.
+    # 之前获取的 start_idx 和 end_idx 很有可能会超过范围
+    # 在下面这一步中，会处理这种情况
     frames = temporal_sampling(frames, start_idx, end_idx, num_frames)
     return frames
