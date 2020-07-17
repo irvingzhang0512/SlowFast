@@ -68,7 +68,7 @@ DEMO:
   DATA_SOURCE: /hdd02/zhangyiyang/AlphAction/data/videos/action2.mp4
   # DISPLAY_WIDTH: 640
   # DISPLAY_HEIGHT: 480
-  DETECTOR_TYPE: yolov4
+  DETECTOR_TYPE: "yolov4"
   DETECTOR_NUM_CLASSES: 80
   DETECTOR_PERSON_CLASS_ID: 0
   DETECTOR_YOLOV4_LIB_PATH: "/hdd02/zhangyiyang/darknet/libdarknet.so"

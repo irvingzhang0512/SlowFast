@@ -129,7 +129,8 @@ def demo(cfg):
             detector = Yolov4Detector(cfg)
         elif cfg.DEMO.DETECTOR_TYPE == 'detectron2':
             detector = Detectron2Detector(cfg)
-        raise ValueError("unknown detector type")
+        else:
+            raise ValueError("unknown detector type")
 
         # Load the labels of AVA dataset
         with open(cfg.DEMO.LABEL_FILE_PATH) as f:
