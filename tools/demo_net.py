@@ -7,9 +7,6 @@ import cv2
 import pandas as pd
 import torch
 import tqdm
-from detectron2 import model_zoo
-from detectron2.config import get_cfg
-from detectron2.engine import DefaultPredictor
 
 import slowfast.utils.checkpoint as cu
 import slowfast.utils.distributed as du
@@ -18,6 +15,8 @@ from slowfast.datasets.cv2_transform import scale
 from slowfast.datasets.utils import tensor_normalize
 from slowfast.models import build
 from slowfast.utils import logging, misc
+from slowfast.utils.detector.detectron2_detector import Detectron2Detector
+from slowfast.utils.detector.yolov4_detector import Yolov4Detector
 
 logger = logging.get_logger(__name__)
 np.random.seed(20)
@@ -126,15 +125,12 @@ def demo(cfg):
     )
 
     if cfg.DETECTION.ENABLE:
-        # Load object detector from detectron2.
-        dtron2_cfg_file = cfg.DEMO.DETECTRON2_OBJECT_DETECTION_MODEL_CFG
-        dtron2_cfg = get_cfg()
-        dtron2_cfg.merge_from_file(model_zoo.get_config_file(dtron2_cfg_file))
-        dtron2_cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.9
-        dtron2_cfg.MODEL.WEIGHTS = (
-            cfg.DEMO.DETECTRON2_OBJECT_DETECTION_MODEL_WEIGHTS)
-        logger.info("Initialize detectron2 model.")
-        object_predictor = DefaultPredictor(dtron2_cfg)
+        if cfg.DEMO.DETECTOR_TYPE == "yolov4":
+            detector = Yolov4Detector(cfg)
+        elif cfg.DEMO.DETECTOR_TYPE == 'detectron2':
+            detector = Detectron2Detector(cfg)
+        raise ValueError("unknown detector type")
+
         # Load the labels of AVA dataset
         with open(cfg.DEMO.LABEL_FILE_PATH) as f:
             labels = f.read().split("\n")[:-1]
@@ -182,23 +178,23 @@ def demo(cfg):
                     detect_frame = mid_frame
                 else:
                     detect_frame = frame
-                outputs = object_predictor(detect_frame)
-                fields = outputs["instances"]._fields
-                pred_classes = fields["pred_classes"]
-                selection_mask = pred_classes == 0
-                # acquire person boxes.
-                pred_classes = pred_classes[selection_mask]
-                pred_boxes = fields["pred_boxes"].tensor[selection_mask]
-                boxes = cv2_transform.scale_boxes(
-                    cfg.DATA.TEST_CROP_SIZE,
-                    pred_boxes,
-                    frame_provider.display_height,
-                    frame_provider.display_width,
-                )
-                boxes = torch.cat(
-                    [torch.full((boxes.shape[0], 1), float(0)).cuda(), boxes],
-                    axis=1,
-                )
+                pred_boxes = detector.detect(detect_frame)
+                do_detect_t = time()
+                boxes = torch.tensor(pred_boxes).cuda()
+                if len(boxes) != 0:
+                    boxes = cv2_transform.scale_boxes(
+                        cfg.DATA.TEST_CROP_SIZE,
+                        boxes,
+                        frame_provider.display_height,
+                        frame_provider.display_width,
+                    )
+                    boxes = torch.cat(
+                        [
+                            torch.full(
+                                (boxes.shape[0], 1), float(0)).cuda(), boxes
+                        ],
+                        axis=1,
+                    )
             t5 = time()
             inputs = torch.from_numpy(np.array(frames)).float() / 255.0
             to_torch_t = time()
@@ -240,12 +236,7 @@ def demo(cfg):
                     cfg.MODEL.SINGLE_PATHWAY_ARCH +
                     cfg.MODEL.MULTI_PATHWAY_ARCH,
                 ))
-            # # Transfer the data to the current GPU device.
-            # if isinstance(inputs, (list, )):
-            #     for i in range(len(inputs)):
-            #         inputs[i] = inputs[i].cuda(non_blocking=True)
-            # else:
-            #     inputs = inputs.cuda(non_blocking=True)
+
             t6 = time()
             # Perform the forward pass.
             if cfg.DETECTION.ENABLE:
@@ -262,7 +253,9 @@ def demo(cfg):
             if cfg.NUM_GPUS > 1:
                 preds = du.all_gather(preds)[0]
 
-            if cfg.DETECTION.ENABLE:
+            if len(preds) == 0:
+                pred_labels = []
+            elif cfg.DETECTION.ENABLE:
                 if cfg.DEMO.POST_PROCESSING_BY_GPU:
                     pred_masks = preds > cfg.DEMO.ACTION_LABEL_THRESHOLD
                     label_ids = [
@@ -417,6 +410,8 @@ def demo(cfg):
             print(
                 "to_torch: %.4f to_tuca: %.4f norm+transpose+expand+build_path: %.4f"
                 % (to_torch_t - t5, to_cuda_t - to_torch_t, t6 - to_cuda_t))
+            print("do_detect: %.4f post_detect: %.4f" %
+                  (do_detect_t - t2, t5 - do_detect_t))
             t1 = time()
 
     frame_provider.clean()
