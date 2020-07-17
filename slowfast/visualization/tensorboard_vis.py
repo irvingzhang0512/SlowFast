@@ -7,7 +7,7 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 
 import slowfast.utils.logging as logging
-import slowfast.utils.visualization_utils as vis_utils
+import slowfast.visualization.utils as vis_utils
 from slowfast.utils.misc import get_class_names
 
 logger = logging.get_logger(__name__)
@@ -165,6 +165,18 @@ class TensorboardWriter(object):
                     figsize=self.hist_figsize,
                 )
 
+    def add_video(self, vid_tensor, tag="Video Input", global_step=None, fps=4):
+        """
+        Add input to tensorboard SummaryWriter as a video.
+        Args:
+            vid_tensor (tensor): shape of (B, T, C, H, W). Values should lie
+                [0, 255] for type uint8 or [0, 1] for type float.
+            tag (Optional[str]): name of the video.
+            global_step(Optional[int]): current step.
+            fps (int): frames per second.
+        """
+        self.writer.add_video(tag, vid_tensor, global_step=global_step, fps=fps)
+
     def close(self):
         self.writer.flush()
         self.writer.close()
@@ -206,7 +218,10 @@ def add_confusion_matrix(
         sub_names = [class_names[j] for j in subset_ids]
 
         sub_cmtx = vis_utils.plot_confusion_matrix(
-            sub_cmtx, num_classes=len(subset_ids), class_names=sub_names, figsize=figsize,
+            sub_cmtx,
+            num_classes=len(subset_ids),
+            class_names=sub_names,
+            figsize=figsize,
         )
         # Add the confusion matrix image to writer.
         writer.add_figure(tag=tag, figure=sub_cmtx, global_step=global_step)
@@ -249,7 +264,11 @@ def plot_hist(
         for i in subset_ids:
             pred = cmtx[i]
             hist = vis_utils.plot_topk_histogram(
-                class_names[i], torch.Tensor(pred), k, class_names, figsize=figsize
+                class_names[i],
+                torch.Tensor(pred),
+                k,
+                class_names,
+                figsize=figsize,
             )
             writer.add_figure(
                 tag="Top {} predictions by classes/{}".format(

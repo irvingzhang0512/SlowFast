@@ -575,8 +575,42 @@ _C.TENSORBOARD.HISTOGRAM.TOPK = 10
 # Figure size of the histograms plotted.
 _C.TENSORBOARD.HISTOGRAM.FIGSIZE = [8, 8]
 
+# ---------------------------------------------------------------------------- #
+# Model Visualization options
+# ---------------------------------------------------------------------------- #
+
+# Config for layers' weights and activations visualization.
+# _C.TENSORBOARD.ENABLE must be True.
+_C.TENSORBOARD.MODEL_VIS = CfgNode()
+
+# If False, skip model visualization.
+_C.TENSORBOARD.MODEL_VIS.ENABLE = False
+
+
 # Add custom config with default values.
 custom_config.add_custom_config(_C)
+
+
+# ---------------------------------------------------------------------------- #
+# Demo options
+# ---------------------------------------------------------------------------- #
+_C.DEMO = CfgNode()
+
+_C.DEMO.ENABLE = False
+
+_C.DEMO.LABEL_FILE_PATH = ""
+
+_C.DEMO.DATA_SOURCE = 0
+
+_C.DEMO.DISPLAY_WIDTH = 0
+
+_C.DEMO.DISPLAY_HEIGHT = 0
+
+_C.DEMO.DETECTRON2_OBJECT_DETECTION_MODEL_CFG = ""
+
+_C.DEMO.DETECTRON2_OBJECT_DETECTION_MODEL_WEIGHTS = ""
+
+_C.DEMO.OUTPUT_FILE = ""
 
 
 def _assert_and_infer_cfg(cfg):
