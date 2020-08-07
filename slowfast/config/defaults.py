@@ -487,6 +487,9 @@ _C.AVA.GROUNDTRUTH_FILE = "ava_val_v2.2.csv"
 # Backend to process image, includes `pytorch` and `cv2`.
 _C.AVA.IMG_PROC_BACKEND = "cv2"
 
+# Select custome classes to train
+_C.AVA.CUSTOM_CLASSES = []
+
 # ---------------------------------------------------------------------------- #
 # Multigrid training options
 # See https://arxiv.org/abs/1912.00998 for details about multigrid training.

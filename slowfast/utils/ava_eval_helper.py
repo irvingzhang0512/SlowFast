@@ -50,7 +50,9 @@ def make_image_key(video_id, timestamp):
     return "%s,%04d" % (video_id, int(timestamp))
 
 
-def read_csv(csv_file, class_whitelist=None, load_score=False):
+def read_csv(
+    csv_file, class_whitelist=None, load_score=False, custom_classes=None
+):
     """Loads boxes and class labels from a CSV file in the AVA format.
     CSV file format described at https://research.google.com/ava/download.html.
     Args:
@@ -69,13 +71,24 @@ def read_csv(csv_file, class_whitelist=None, load_score=False):
     boxes = defaultdict(list)
     labels = defaultdict(list)
     scores = defaultdict(list)
+    if custom_classes is not None and len(custom_classes) == 0:
+        custom_classes = None
+    id_mapping = None
+    if custom_classes is not None:
+        id_mapping = {
+            cur_class: idx + 1 for idx, cur_class in enumerate(custom_classes)
+        }
     with PathManager.open(csv_file, "r") as f:
         reader = csv.reader(f)
         for row in reader:
+            action_id = int(row[6])
+            if custom_classes is not None:
+                if action_id not in custom_classes:
+                    continue
+                action_id = id_mapping[action_id]
             assert len(row) in [7, 8], "Wrong number of columns: " + row
             image_key = make_image_key(row[0], row[1])
             x1, y1, x2, y2 = [float(n) for n in row[2:6]]
-            action_id = int(row[6])
             if class_whitelist and action_id not in class_whitelist:
                 continue
             score = 1.0
@@ -105,19 +118,27 @@ def read_exclusions(exclusions_file):
     return excluded
 
 
-def read_labelmap(labelmap_file):
+def read_labelmap(labelmap_file, custom_classes=None):
     """Read label map and class ids."""
 
     labelmap = []
     class_ids = set()
     name = ""
     class_id = ""
+    cur_idx = 1
+    if custom_classes is not None and len(custom_classes) == 0:
+        custom_classes = None
     with PathManager.open(labelmap_file, "r") as f:
         for line in f:
             if line.startswith("  name:"):
                 name = line.split('"')[1]
             elif line.startswith("  id:") or line.startswith("  label_id:"):
                 class_id = int(line.strip().split(" ")[-1])
+                if custom_classes is not None:
+                    if class_id not in custom_classes:
+                        continue
+                    class_id = cur_idx
+                    cur_idx += 1
                 labelmap.append({"id": class_id, "name": name})
                 class_ids.add(class_id)
     return labelmap, class_ids

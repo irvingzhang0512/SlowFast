@@ -68,12 +68,15 @@ class AVAMeter(object):
             os.path.join(cfg.AVA.ANNOTATION_DIR, cfg.AVA.EXCLUSION_FILE)
         )
         self.categories, self.class_whitelist = read_labelmap(
-            os.path.join(cfg.AVA.ANNOTATION_DIR, cfg.AVA.LABEL_MAP_FILE)
+            os.path.join(cfg.AVA.ANNOTATION_DIR, cfg.AVA.LABEL_MAP_FILE),
+            cfg.AVA.CUSTOM_CLASSES,
         )
         gt_filename = os.path.join(
             cfg.AVA.ANNOTATION_DIR, cfg.AVA.GROUNDTRUTH_FILE
         )
-        self.full_groundtruth = read_csv(gt_filename, self.class_whitelist)
+        self.full_groundtruth = read_csv(
+            gt_filename, self.class_whitelist, cfg.AVA.CUSTOM_CLASSES
+        )
         self.mini_groundtruth = get_ava_mini_groundtruth(self.full_groundtruth)
 
         _, self.video_idx_to_name = ava_helper.load_image_lists(

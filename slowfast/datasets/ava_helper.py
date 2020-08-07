@@ -102,6 +102,7 @@ def load_boxes_and_labels(cfg, mode):
         ann_is_gt_box=ann_is_gt_box,
         detect_thresh=detect_thresh,
         boxes_sample_rate=boxes_sample_rate,
+        custom_classes=cfg.AVA.CUSTOM_CLASSES,
     )
     logger.info(
         "Finished loading annotations from: %s" % ", ".join(ann_filenames)
@@ -179,7 +180,11 @@ def get_num_boxes_used(keyframe_indices, keyframe_boxes_and_labels):
 
 
 def parse_bboxes_file(
-    ann_filenames, ann_is_gt_box, detect_thresh, boxes_sample_rate=1
+    ann_filenames,
+    ann_is_gt_box,
+    detect_thresh,
+    boxes_sample_rate=1,
+    custom_classes=None,
 ):
     """
     Parse AVA bounding boxes files.
@@ -189,14 +194,31 @@ def parse_bboxes_file(
             ann_file is ground-truth. `ann_is_gt_box[i]` correspond to `ann_filenames[i]`.
         detect_thresh (float): threshold for accepting predicted boxes, range [0, 1].
         boxes_sample_rate (int): sample rate for test bounding boxes. Get 1 every `boxes_sample_rate`.
+        custom_classes (list(int)): custom classes to train
     """
     all_boxes = {}
     count = 0
     unique_box_count = 0
+    if custom_classes is not None and len(custom_classes) == 0:
+        custom_classes = None
+    id_mapping = None
+    if custom_classes is not None:
+        id_mapping = {
+            cur_class: idx + 1 for idx, cur_class in enumerate(custom_classes)
+        }
     for filename, is_gt_box in zip(ann_filenames, ann_is_gt_box):
         with PathManager.open(filename, "r") as f:
             for line in f:
                 row = line.strip().split(",")
+
+                # continue if current label is not in custom classes
+                label = -1 if row[6] == "" else int(row[6])
+                if label != -1 and custom_classes is not None:
+                    if label not in custom_classes:
+                        continue
+                    else:
+                        label = id_mapping[label]
+
                 # When we use predicted boxes to train/eval, we need to
                 # ignore the boxes whose scores are below the threshold.
                 if not is_gt_box:
@@ -211,7 +233,6 @@ def parse_bboxes_file(
                 # Box with format [x1, y1, x2, y2] with a range of [0, 1] as float.
                 box_key = ",".join(row[2:6])
                 box = list(map(float, row[2:6]))
-                label = -1 if row[6] == "" else int(row[6])
 
                 if video_name not in all_boxes:
                     all_boxes[video_name] = {}
