@@ -1,0 +1,10 @@
+__pycache__/
+data/
+logs/
+slowfast.egg-info/
+build/
+.vscode/
+third_party/
+test*.ipynb
+examples/
+*.pkl
