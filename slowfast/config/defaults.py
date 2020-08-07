@@ -575,10 +575,6 @@ _C.TENSORBOARD.HISTOGRAM.TOPK = 10
 # Figure size of the histograms plotted.
 _C.TENSORBOARD.HISTOGRAM.FIGSIZE = [8, 8]
 
-# ---------------------------------------------------------------------------- #
-# Model Visualization options
-# ---------------------------------------------------------------------------- #
-
 # Config for layers' weights and activations visualization.
 # _C.TENSORBOARD.ENABLE must be True.
 _C.TENSORBOARD.MODEL_VIS = CfgNode()
@@ -586,9 +582,28 @@ _C.TENSORBOARD.MODEL_VIS = CfgNode()
 # If False, skip model visualization.
 _C.TENSORBOARD.MODEL_VIS.ENABLE = False
 
+# If False, skip visualizing model weights.
+_C.TENSORBOARD.MODEL_VIS.MODEL_WEIGHTS = False
 
-# Add custom config with default values.
-custom_config.add_custom_config(_C)
+# If False, skip visualizing model activations.
+_C.TENSORBOARD.MODEL_VIS.ACTIVATIONS = False
+
+# If False, skip visualizing input videos.
+_C.TENSORBOARD.MODEL_VIS.INPUT_VIDEO = False
+
+# List of strings containing data about layer names and their indexing to
+# visualize weights and activations for. The indexing is meant for
+# choosing a subset of activations outputed by a layer for visualization.
+# If indexing is not specified, visualize all activations outputed by the layer.
+# For each string, layer name and indexing is separated by whitespaces.
+# e.g.: [layer1 1,2;1,2, layer2, layer3 150,151;3,4]; this means for each array `arr`
+# along the batch dimension in `layer1`, we take arr[[1, 2], [1, 2]]
+_C.TENSORBOARD.MODEL_VIS.LAYER_LIST = []
+# Top-k predictions to plot on videos
+_C.TENSORBOARD.MODEL_VIS.TOPK_PREDS = 1
+
+# Colormap to for text boxes and bounding boxes colors
+_C.TENSORBOARD.MODEL_VIS.COLORMAP = "Pastel2"
 
 
 # ---------------------------------------------------------------------------- #
@@ -596,21 +611,58 @@ custom_config.add_custom_config(_C)
 # ---------------------------------------------------------------------------- #
 _C.DEMO = CfgNode()
 
+# Run model in DEMO mode.
 _C.DEMO.ENABLE = False
 
+# Path to a json file providing class_name - id mapping
+# in the format {"class_name1": id1, "class_name2": id2, ...}.
 _C.DEMO.LABEL_FILE_PATH = ""
 
-_C.DEMO.DATA_SOURCE = 0
+# Specify a camera device as input. This will be prioritized
+# over input video if set.
+# If -1, use input video instead.
+_C.DEMO.WEBCAM = -1
 
+# Path to input video for demo.
+_C.DEMO.INPUT_VIDEO = ""
+# Custom width for reading input video data.
 _C.DEMO.DISPLAY_WIDTH = 0
-
+# Custom height for reading input video data.
 _C.DEMO.DISPLAY_HEIGHT = 0
-
-_C.DEMO.DETECTRON2_OBJECT_DETECTION_MODEL_CFG = ""
-
-_C.DEMO.DETECTRON2_OBJECT_DETECTION_MODEL_WEIGHTS = ""
-
+# Path to Detectron2 object detection model configuration,
+# only used for detection tasks.
+_C.DEMO.DETECTRON2_CFG = "COCO-Detection/faster_rcnn_R_50_FPN_3x.yaml"
+# Path to Detectron2 object detection model pre-trained weights.
+_C.DEMO.DETECTRON2_WEIGHTS = "detectron2://COCO-Detection/faster_rcnn_R_50_FPN_3x/137849458/model_final_280758.pkl"
+# Threshold for choosing predicted bounding boxes by Detectron2.
+_C.DEMO.DETECTRON2_THRESH = 0.9
+# Number of overlapping frames between 2 consecutive clips.
+# Increase this number for more frequent action predictions.
+# The number of overlapping frames cannot be larger than
+# half of the sequence length `cfg.DATA.NUM_FRAMES * cfg.DATA.SAMPLING_RATE`
+_C.DEMO.BUFFER_SIZE = 0
+# If specified, the visualized outputs will be written this a video file of
+# this path. Otherwise, the visualized outputs will be displayed in a window.
 _C.DEMO.OUTPUT_FILE = ""
+# Frames per second rate for writing to output video file.
+# If not set (-1), use fps rate from input file.
+_C.DEMO.OUTPUT_FPS = -1
+# Input format from demo video reader ("RGB" or "BGR").
+_C.DEMO.INPUT_FORMAT = "BGR"
+# Draw visualization frames in [keyframe_idx - CLIP_VIS_SIZE, keyframe_idx + CLIP_VIS_SIZE] inclusively.
+_C.DEMO.CLIP_VIS_SIZE = 10
+
+_C.DEMO.PREDS_BOXES = ""
+# Path to ground-truth boxes and labels (optional)
+_C.DEMO.GT_BOXES = ""
+# The starting second of the video w.r.t bounding boxes file.
+_C.DEMO.STARTING_SECOND = 900
+# Frames per second of the input video/folder of images.
+_C.DEMO.FPS = 30
+
+
+# Add custom config with default values.
+custom_config.add_custom_config(_C)
 
 
 def _assert_and_infer_cfg(cfg):
