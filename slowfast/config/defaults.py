@@ -601,9 +601,20 @@ _C.TENSORBOARD.MODEL_VIS.INPUT_VIDEO = False
 _C.TENSORBOARD.MODEL_VIS.LAYER_LIST = []
 # Top-k predictions to plot on videos
 _C.TENSORBOARD.MODEL_VIS.TOPK_PREDS = 1
-
 # Colormap to for text boxes and bounding boxes colors
 _C.TENSORBOARD.MODEL_VIS.COLORMAP = "Pastel2"
+
+_C.TENSORBOARD.MODEL_VIS.GRAD_CAM = CfgNode()
+# Whether to run visualization using Grad-CAM technique.
+_C.TENSORBOARD.MODEL_VIS.GRAD_CAM.ENABLE = True
+# CNN layers to use for Grad-CAM. The number of layers must be equal to
+# number of pathway(s).
+_C.TENSORBOARD.MODEL_VIS.GRAD_CAM.LAYER_LIST = []
+# If True, visualize Grad-CAM using true labels for each instances.
+# If False, use the highest predicted class.
+_C.TENSORBOARD.MODEL_VIS.GRAD_CAM.USE_TRUE_LABEL = False
+# Colormap to for text boxes and bounding boxes colors
+_C.TENSORBOARD.MODEL_VIS.GRAD_CAM.COLORMAP = "viridis"
 
 
 # ---------------------------------------------------------------------------- #
@@ -651,6 +662,8 @@ _C.DEMO.OUTPUT_FPS = -1
 _C.DEMO.INPUT_FORMAT = "BGR"
 # Draw visualization frames in [keyframe_idx - CLIP_VIS_SIZE, keyframe_idx + CLIP_VIS_SIZE] inclusively.
 _C.DEMO.CLIP_VIS_SIZE = 10
+# Number of processes to run video visualizer.
+_C.DEMO.NUM_VIS_INSTANCES = 2
 
 _C.DEMO.PREDS_BOXES = ""
 # Path to ground-truth boxes and labels (optional)
@@ -659,6 +672,27 @@ _C.DEMO.GT_BOXES = ""
 _C.DEMO.STARTING_SECOND = 900
 # Frames per second of the input video/folder of images.
 _C.DEMO.FPS = 30
+# Visualize with top-k predictions or predictions above certain threshold(s).
+# Option: {"thres", "top-k"}
+_C.DEMO.VIS_MODE = "thres"
+# Threshold for common class names.
+_C.DEMO.COMMON_CLASS_THRES = 0.7
+# Theshold for uncommon class names. This will not be
+# used if `_C.DEMO.COMMON_CLASS_NAMES` is empty.
+_C.DEMO.UNCOMMON_CLASS_THRES = 0.3
+# This is chosen based on distribution of examples in
+# each classes in AVA dataset.
+_C.DEMO.COMMON_CLASS_NAMES = [
+    "watch (a person)",
+    "talk to (e.g., self, a person, a group)",
+    "listen to (a person)",
+    "touch (an object)",
+    "carry/hold (an object)",
+    "walk",
+    "sit",
+    "lie/sleep",
+    "bend/bow (at the waist)",
+]
 
 
 # Add custom config with default values.
