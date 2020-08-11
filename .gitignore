@@ -1,0 +1,11 @@
+checkpoints/
+data/
+build/
+.vscode/
+examples/
+logs/
+third_party/
+slowfast.egg-info/
+__pycache__/
+nohup.out
+test*.ipynb
