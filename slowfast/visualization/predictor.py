@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
 
+import queue
 import cv2
 import torch
 from detectron2 import model_zoo
@@ -29,7 +30,9 @@ class Predictor:
             gpu_id (Optional[int]): GPU id.
         """
         if cfg.NUM_GPUS:
-            self.gpu_id = torch.cuda.current_device() if gpu_id is None else gpu_id
+            self.gpu_id = (
+                torch.cuda.current_device() if gpu_id is None else gpu_id
+            )
 
         # Build the video model and print model statistics.
         self.model = build_model(cfg, gpu_id=gpu_id)
@@ -117,6 +120,7 @@ class ActionPredictor:
     """
     Synchronous Action Prediction and Visualization pipeline with AsyncVis.
     """
+
     def __init__(self, cfg, async_vis=None, gpu_id=None):
         """
         Args:
@@ -136,7 +140,19 @@ class ActionPredictor:
                 the necessary information for action prediction. (e.g. frames, boxes)
         """
         task = self.predictor(task)
+        self.async_vis.get_indices_ls.append(task.id)
         self.async_vis.put(task)
+
+    def get(self):
+        """
+        Get the visualized clips if any.
+        """
+        try:
+            task = self.async_vis.get()
+        except (queue.Empty, IndexError):
+            raise IndexError("Results are not available yet.")
+
+        return task
 
 
 class Detectron2Predictor:
@@ -175,7 +191,7 @@ class Detectron2Predictor:
         Return bounding boxes predictions as a tensor.
         Args:
             task (TaskInfo object): task object that contain
-                the necessary information for action prediction. (e.g. frames, boxes)
+                the necessary information for action prediction. (e.g. frames)
         Returns:
             task (TaskInfo object): the same task info object but filled with
                 prediction values (a tensor) and the corresponding boxes for
