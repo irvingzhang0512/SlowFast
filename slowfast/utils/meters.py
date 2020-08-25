@@ -6,6 +6,7 @@
 import datetime
 import numpy as np
 import os
+import time
 from collections import defaultdict, deque
 import torch
 from fvcore.common.timer import Timer
@@ -437,7 +438,7 @@ class TrainMeter(object):
         self._cfg = cfg
         self.epoch_iters = epoch_iters
         self.MAX_EPOCH = cfg.SOLVER.MAX_EPOCH * epoch_iters
-        self.iter_timer = Timer()
+        # self.iter_timer = Timer()
         self.loss = ScalarMeter(cfg.LOG_PERIOD)
         self.loss_total = 0.0
         self.lr = None
@@ -448,6 +449,12 @@ class TrainMeter(object):
         self.num_top1_mis = 0
         self.num_top5_mis = 0
         self.num_samples = 0
+        # cal mean data time and iter time
+        self.data_time = ScalarMeter(cfg.LOG_PERIOD)
+        self.iter_time = ScalarMeter(cfg.LOG_PERIOD)
+        self.cur_start_time = 0
+        self.cur_data_time = 0
+        self.cur_iter_time = 0
 
     def reset(self):
         """
@@ -461,18 +468,32 @@ class TrainMeter(object):
         self.num_top1_mis = 0
         self.num_top5_mis = 0
         self.num_samples = 0
+        self.data_time.reset()
+        self.iter_time.reset()
+        self.cur_start_time = 0
+        self.cur_data_time = 0
+        self.cur_iter_time = 0
 
     def iter_tic(self):
         """
         Start to record time.
         """
-        self.iter_timer.reset()
+        # self.iter_timer.reset()
+        self.cur_start_time = time.time()
 
     def iter_toc(self):
         """
         Stop to record time.
         """
-        self.iter_timer.pause()
+        # self.iter_timer.pause()
+        if self.cur_start_time > 0:
+            self.iter_time.add_value(time.time() - self.cur_start_time)
+            self.cur_iter_time = self.iter_time.get_global_avg()
+    
+    def data_toc(self):
+        if self.cur_start_time > 0:
+            self.data_time.add_value(time.time() - self.cur_start_time)
+            self.cur_data_time = self.data_time.get_global_avg()
 
     def update_stats(self, top1_err, top5_err, loss, lr, mb_size):
         """
@@ -488,6 +509,9 @@ class TrainMeter(object):
         self.lr = lr
         self.loss_total += loss * mb_size
         self.num_samples += mb_size
+
+        self.data_time.add_value(self.cur_data_time)
+        self.iter_time.add_value(self.cur_iter_time)
 
         if not self._cfg.DATA.MULTI_LABEL:
             # Current minibatch stats
@@ -506,7 +530,10 @@ class TrainMeter(object):
         """
         if (cur_iter + 1) % self._cfg.LOG_PERIOD != 0:
             return
-        eta_sec = self.iter_timer.seconds() * (
+        # eta_sec = self.iter_timer.seconds() * (
+        #     self.MAX_EPOCH - (cur_epoch * self.epoch_iters + cur_iter + 1)
+        # )
+        eta_sec = self.cur_iter_time * (
             self.MAX_EPOCH - (cur_epoch * self.epoch_iters + cur_iter + 1)
         )
         eta = str(datetime.timedelta(seconds=int(eta_sec)))
@@ -514,7 +541,9 @@ class TrainMeter(object):
             "_type": "train_iter",
             "epoch": "{}/{}".format(cur_epoch + 1, self._cfg.SOLVER.MAX_EPOCH),
             "iter": "{}/{}".format(cur_iter + 1, self.epoch_iters),
-            "time_diff": self.iter_timer.seconds(),
+            # "time_diff": self.iter_timer.seconds(),
+            "iter_time": self.cur_iter_time,
+            "data_time": self.cur_data_time,
             "eta": eta,
             "loss": self.loss.get_win_median(),
             "lr": self.lr,
@@ -531,14 +560,19 @@ class TrainMeter(object):
         Args:
             cur_epoch (int): the number of current epoch.
         """
-        eta_sec = self.iter_timer.seconds() * (
+        # eta_sec = self.iter_timer.seconds() * (
+        #     self.MAX_EPOCH - (cur_epoch + 1) * self.epoch_iters
+        # )
+        eta_sec = self.cur_iter_time * (
             self.MAX_EPOCH - (cur_epoch + 1) * self.epoch_iters
         )
         eta = str(datetime.timedelta(seconds=int(eta_sec)))
         stats = {
             "_type": "train_epoch",
             "epoch": "{}/{}".format(cur_epoch + 1, self._cfg.SOLVER.MAX_EPOCH),
-            "time_diff": self.iter_timer.seconds(),
+            # "time_diff": self.iter_timer.seconds(),
+            "iter_time": self.cur_iter_time,
+            "data_time": self.cur_data_time,
             "eta": eta,
             "lr": self.lr,
             "gpu_mem": "{:.2f} GB".format(misc.gpu_mem_usage()),
