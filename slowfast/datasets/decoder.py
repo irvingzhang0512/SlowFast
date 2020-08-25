@@ -265,6 +265,29 @@ def pyav_decode(
     return frames, fps, decode_all_video
 
 
+def decord_decode(
+    container, sampling_rate, num_frames, clip_idx, num_clips=10, target_fps=30
+):
+    fps = float(container.get_avg_fps())
+    frames_length = len(container)
+
+    # Perform selective decoding.
+    start_idx, end_idx = get_start_end_idx(
+        frames_length,
+        sampling_rate * num_frames / target_fps * fps,
+        clip_idx,
+        num_clips,
+    )
+    frame_inds = np.linspace(start_idx, end_idx, num_frames)
+    frame_inds = np.clip(frame_inds, 0, frames_length - 1).astype(np.int32)
+    frame_dict = {
+        idx: container[idx].asnumpy()
+        for idx in np.unique(frame_inds)
+    }
+    frames = [frame_dict[idx] for idx in frame_inds]
+    return torch.as_tensor(np.stack(frames))
+
+
 def decode(
     container,
     sampling_rate,
@@ -324,6 +347,16 @@ def decode(
                 target_fps,
                 ("visual",),
                 max_spatial_scale,
+            )
+        elif backend == "decord":
+            # decord return selective frames
+            return decord_decode(
+                container,
+                sampling_rate,
+                num_frames,
+                clip_idx,
+                num_clips,
+                target_fps,
             )
         else:
             raise NotImplementedError(

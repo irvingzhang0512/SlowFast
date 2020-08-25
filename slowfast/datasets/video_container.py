@@ -25,5 +25,13 @@ def get_video_container(path_to_vid, multi_thread_decode=False, backend="pyav"):
             # Enable multiple threads for decoding.
             container.streams.video[0].thread_type = "AUTO"
         return container
+    elif backend == "decord":
+        try:
+            import decord
+        except ImportError:
+            raise ImportError(
+                'Please run "pip install decord" to install Decord first.'
+            )
+        return decord.VideoReader(path_to_vid)
     else:
         raise NotImplementedError("Unknown backend {}".format(backend))
