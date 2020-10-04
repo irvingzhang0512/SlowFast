@@ -180,13 +180,22 @@ class Kinetics(torch.utils.data.Dataset):
             # center, or right if width is larger than height, and top, middle,
             # or bottom if height is larger than width.
             spatial_sample_index = (
-                self._spatial_temporal_idx[index]
-                % self.cfg.TEST.NUM_SPATIAL_CROPS
+                (
+                    self._spatial_temporal_idx[index]
+                    % self.cfg.TEST.NUM_SPATIAL_CROPS
+                )
+                if self.cfg.TEST.NUM_SPATIAL_CROPS > 1
+                else 1
             )
-            min_scale, max_scale, crop_size = [self.cfg.DATA.TEST_CROP_SIZE] * 3
+            min_scale, max_scale, crop_size = (
+                [self.cfg.DATA.TEST_CROP_SIZE] * 3
+                if self.cfg.TEST.NUM_SPATIAL_CROPS > 1
+                else [self.cfg.DATA.TRAIN_JITTER_SCALES[0]] * 2
+                + [self.cfg.DATA.TEST_CROP_SIZE]
+            )
             # The testing is deterministic and no jitter should be performed.
             # min_scale, max_scale, and crop_size are expect to be the same.
-            assert len({min_scale, max_scale, crop_size}) == 1
+            assert len({min_scale, max_scale}) == 1
         else:
             raise NotImplementedError(
                 "Does not support {} mode".format(self.mode)
@@ -200,7 +209,7 @@ class Kinetics(torch.utils.data.Dataset):
         # 如果指定视频不能解码，则随机选择另外一个视频（根据下标随机选择）
         # Try to decode and sample a clip from a video. If the video can not be
         # decoded, repeatly find a random video replacement that can be decoded.
-        for _ in range(self._num_retries):
+        for i_try in range(self._num_retries):
             # 视频解码方式有两种，torchvision和pyav
             # 通过 cfg.DATA.DECODING_BACKEND 控制
             video_container = None
@@ -218,7 +227,17 @@ class Kinetics(torch.utils.data.Dataset):
                 )
             # Select a random video if the current video was not able to access.
             if video_container is None:
-                index = random.randint(0, len(self._path_to_videos) - 1)
+                logger.warning(
+                    "Failed to meta load video idx {} from {}; trial {}".format(
+                        index, self._path_to_videos[index], i_try
+                    )
+                )
+                if (
+                    self.mode not in ["test"]
+                    and i_try > self._num_retries // 2
+                ):
+                    # let's try another one
+                    index = random.randint(0, len(self._path_to_videos) - 1)
                 continue
             
             # 执行解码，并采样
@@ -232,14 +251,24 @@ class Kinetics(torch.utils.data.Dataset):
                 video_meta=self._video_meta[index],
                 target_fps=self.cfg.DATA.TARGET_FPS,
                 backend=self.cfg.DATA.DECODING_BACKEND,
-                max_spatial_scale=max_scale,
+                max_spatial_scale=min_scale,
             )
 
             # 解码失败，再随机选择一个视频，执行一次
             # If decoding failed (wrong format, video is too short, and etc),
             # select another video.
             if frames is None:
-                index = random.randint(0, len(self._path_to_videos) - 1)
+                logger.warning(
+                    "Failed to decode video idx {} from {}; trial {}".format(
+                        index, self._path_to_videos[index], i_try
+                    )
+                )
+                if (
+                    self.mode not in ["test"]
+                    and i_try > self._num_retries // 2
+                ):
+                    # let's try another one
+                    index = random.randint(0, len(self._path_to_videos) - 1)
                 continue
             
             # 数据预处理
